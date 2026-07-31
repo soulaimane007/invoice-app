@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "invoice-app",
+			"path": "../../../.."
+		},
+		{
+			"name": "app",
+			"path": "../../../../../laravel-invoicing-phase2/app"
+		}
+	],
+	"settings": {}
+}

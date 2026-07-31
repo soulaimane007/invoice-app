@@ -1,0 +1,1 @@
+export const COMMON_UNITS = ['Unité', 'Litre', 'Kg', 'Mètre', 'Heure', 'Jour', 'Boîte', 'Paquet'];

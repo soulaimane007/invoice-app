@@ -1,0 +1,29 @@
+<?php
+
+use App\Http\Middleware\EnsureRole;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Configuration\Middleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware) {
+        $middleware->trimStrings(except: [
+            'devis_ref_separator_1',
+            'devis_ref_separator_2',
+            'facture_ref_separator_1',
+            'facture_ref_separator_2',
+        ]);
+
+        $middleware->alias(['role' => EnsureRole::class]);
+    })
+    ->withExceptions(function (Exceptions $exceptions) {
+        $exceptions->shouldRenderJsonWhen(function ($request, $throwable) {
+            return $request->is('api/*') || $request->expectsJson();
+        });
+    })->create();
