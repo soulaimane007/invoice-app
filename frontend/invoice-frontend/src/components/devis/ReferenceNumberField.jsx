@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import apiClient, { unwrap } from '../../api/client';
 import { buildReferencePreview } from '../../utils/referencePattern';
+import { useAuth } from '../../contexts/AuthContext';
+import { canEditReference } from '../../utils/permissions';
 
 export default function ReferenceNumberField({ documentType, value, onChange, error, label = 'Reference' }) {
+  const { user } = useAuth();
+  const editable = canEditReference(user);
   const [patternConfig, setPatternConfig] = useState(null);
 
   useEffect(() => {
@@ -30,14 +34,20 @@ export default function ReferenceNumberField({ documentType, value, onChange, er
       <div className="mb-1 truncate rounded-lg bg-noir-100 px-3 py-2 font-mono text-sm text-noir-700">
         {preview}
       </div>
-      <input
-        type="number"
-        min="1"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        dir="ltr"
-        className="w-full rounded-lg border border-noir-300 px-3 py-2 text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
-      />
+      {editable ? (
+        <input
+          type="number"
+          min="1"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          dir="ltr"
+          className="w-full rounded-lg border border-noir-300 px-3 py-2 text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+        />
+      ) : (
+        <div className="w-full rounded-lg border border-noir-200 bg-noir-50 px-3 py-2 text-sm text-noir-500" dir="ltr">
+          {value || '—'}
+        </div>
+      )}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

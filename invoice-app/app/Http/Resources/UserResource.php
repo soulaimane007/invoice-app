@@ -13,8 +13,14 @@ class UserResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
-          'role' => $this->role,
-
+            'role' => $this->role,
+            'can_edit_after_sent' => (bool) $this->can_edit_after_sent,
+            'can_delete_documents' => (bool) $this->can_delete_documents,
+            'can_edit_reference' => (bool) $this->can_edit_reference,
+            'can_edit_company_settings' => (bool) $this->can_edit_company_settings,
+            'can_delete_records' => (bool) $this->can_delete_records,
+            'is_active' => (bool) $this->is_active,
+            'created_at' => $this->created_at,
         ];
     }
 }

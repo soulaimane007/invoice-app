@@ -8,6 +8,8 @@ import ClientHistoryModal from '../components/clients/ClientHistoryModal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import ExpandableRow, { DetailRow } from '../components/ui/ExpandableRow';
 import PerPageSelect from '../components/ui/PerPageSelect';
+import { useAuth } from '../contexts/AuthContext';
+import { canDeleteRecords } from '../utils/permissions';
 function formatCurrency(value) {
   return new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0);
 }
@@ -20,6 +22,8 @@ function formatDate(value) {
 }
 
 export default function ClientsPage() {
+  const { user } = useAuth();
+  const canDelete = canDeleteRecords(user);
   const [clients, setClients] = useState([]);
   const [meta, setMeta] = useState(null);
 const [page, setPage] = useState(1);
@@ -157,9 +161,11 @@ useEffect(() => {
                         <button onClick={() => openEdit(client)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600" title="Edit">
                           <Pencil size={16} />
                         </button>
-                        <button onClick={() => setDeletingClient(client)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600" title="Delete">
-                          <Trash2 size={16} />
-                        </button>
+                        {canDelete && (
+                          <button onClick={() => setDeletingClient(client)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600" title="Delete">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -208,9 +214,11 @@ useEffect(() => {
                     <button onClick={() => openEdit(client)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50">
                       <Pencil size={14} /> Edit
                     </button>
-                    <button onClick={() => setDeletingClient(client)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">
-                      <Trash2 size={14} /> Delete
-                    </button>
+                    {canDelete && (
+                      <button onClick={() => setDeletingClient(client)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    )}
                   </>
                 }
               />

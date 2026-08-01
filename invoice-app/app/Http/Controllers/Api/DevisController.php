@@ -7,8 +7,10 @@ use App\Http\Requests\DevisRequest;
 use App\Http\Resources\DevisResource;
 use App\Http\Resources\FactureResource;
 use App\Models\Devis;
+use App\Services\AuditLogService;
 use App\Services\DevisService;
 use App\Services\PdfService;
+use App\Services\ReferenceGeneratorService;
 use Illuminate\Http\Request;
 
 class DevisController extends Controller
@@ -16,6 +18,7 @@ class DevisController extends Controller
     public function __construct(
         private readonly DevisService $devisService,
         private readonly PdfService $pdfService,
+        private readonly AuditLogService $auditLog,
     ) {
     }
 
@@ -57,11 +60,15 @@ class DevisController extends Controller
     {
         $this->authorize('create', Devis::class);
 
+        if (! $request->user()->hasPermission('can_edit_reference')) {
+            abort(403, "You don't have permission to change reference numbers.");
+        }
+
         $validated = $request->validate([
             'number' => [
                 'required', 'integer', 'min:1',
                 function ($attribute, $value, $fail) {
-                    $generator = app(\App\Services\ReferenceGeneratorService::class);
+                    $generator = app(ReferenceGeneratorService::class);
                     $reference = $generator->buildFromNumber('devis', (int) $value);
                     if ($generator->exists('devis', $reference)) {
                         $fail("La référence \"{$reference}\" existe déjà.");
@@ -82,6 +89,8 @@ class DevisController extends Controller
 
         $devis = $this->devisService->create($data);
 
+        $this->auditLog->log($request->user()->organizationId(), 'devis.created', $devis, $devis->reference);
+
         return new DevisResource($devis->load(['client', 'lignes.article']));
     }
 
@@ -96,16 +105,39 @@ class DevisController extends Controller
     {
         $this->authorize('update', $devis);
 
+        if ($devis->status !== 'draft' && ! $request->user()->hasPermission('can_edit_after_sent')) {
+            abort(403, "You don't have permission to edit a quotation once it's no longer a draft.");
+        }
+
+        $oldReferenceNumber = $devis->reference_number;
+        $oldStatus = $devis->status;
+
         $devis = $this->devisService->update($devis, $request->validated());
+
+        $metadata = [];
+        if ($devis->reference_number !== $oldReferenceNumber) {
+            $metadata['reference_changed'] = ['from' => $oldReferenceNumber, 'to' => $devis->reference_number];
+        }
+        if ($devis->status !== $oldStatus) {
+            $metadata['status_changed'] = ['from' => $oldStatus, 'to' => $devis->status];
+        }
+        $this->auditLog->log($request->user()->organizationId(), 'devis.updated', $devis, $devis->reference, $metadata);
 
         return new DevisResource($devis->load(['client', 'lignes.article']));
     }
 
-    public function destroy(Devis $devis)
+    public function destroy(Request $request, Devis $devis)
     {
         $this->authorize('delete', $devis);
 
+        if (! $request->user()->hasPermission('can_delete_documents')) {
+            abort(403, "You don't have permission to delete quotations.");
+        }
+
+        $reference = $devis->reference;
         $devis->delete();
+
+        $this->auditLog->log($request->user()->organizationId(), 'devis.deleted', null, $reference);
 
         return response()->json(['message' => 'Quotation deleted.']);
     }
@@ -131,12 +163,18 @@ class DevisController extends Controller
             ])->all(),
         ]);
 
+        $this->auditLog->log($request->user()->organizationId(), 'devis.duplicated', $copy, $copy->reference, ['original_reference' => $devis->reference]);
+
         return new DevisResource($copy->load(['client', 'lignes.article']));
     }
 
     public function convert(Request $request, Devis $devis)
     {
         $this->authorize('update', $devis);
+
+        if ($request->filled('reference_number') && ! $request->user()->hasPermission('can_edit_reference')) {
+            abort(403, "You don't have permission to change reference numbers.");
+        }
 
         $validated = $request->validate([
             'reference_number' => [
@@ -145,7 +183,7 @@ class DevisController extends Controller
                     if ($value === null) {
                         return;
                     }
-                    $generator = app(\App\Services\ReferenceGeneratorService::class);
+                    $generator = app(ReferenceGeneratorService::class);
                     $reference = $generator->buildFromNumber('facture', (int) $value);
                     if ($generator->exists('facture', $reference)) {
                         $fail("La référence \"{$reference}\" est déjà utilisée par une autre facture.");
@@ -161,6 +199,8 @@ class DevisController extends Controller
         ]);
 
         $result = $this->devisService->convertToFacture($devis, $validated);
+
+        $this->auditLog->log($request->user()->organizationId(), 'devis.converted', $devis, $devis->reference, ['facture_reference' => $result['facture']->reference]);
 
         return (new FactureResource($result['facture']->load(['client', 'lignes.article', 'lignes.matricules'])))
             ->additional(['stock_warnings' => $result['warnings']]);

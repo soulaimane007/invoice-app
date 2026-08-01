@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Services\ReferenceGeneratorService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class FactureRequest extends FormRequest
 {
@@ -11,7 +12,14 @@ class FactureRequest extends FormRequest
     {
         return true;
     }
-
+ public function withValidator(Validator $validator): void
+    {
+        $validator->after(function ($validator) {
+            if ($this->filled('reference_number') && ! $this->user()->hasPermission('can_edit_reference')) {
+                $validator->errors()->add('reference_number', "You don't have permission to change the reference number.");
+            }
+        });
+    }
     public function rules(): array
     {
         $isUpdate = $this->route('facture') !== null;

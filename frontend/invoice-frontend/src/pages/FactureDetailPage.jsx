@@ -6,6 +6,8 @@ import { useToast } from '../contexts/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import RecordPaymentModal from '../components/facture/RecordPaymentModal';
 import StockWarningBanner from '../components/ui/StockWarningBanner';
+import { useAuth } from '../contexts/AuthContext';
+import { canEditDocument, canDeleteDocuments } from '../utils/permissions';
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0);
@@ -22,6 +24,7 @@ const statusStyles = {
 };
 
 export default function FactureDetailPage() {
+  const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -108,9 +111,11 @@ export default function FactureDetailPage() {
         </div>
 
         <div className="flex gap-2">
-          <button onClick={() => navigate(`/factures/${id}/edit`)} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            <Pencil size={15} /> Edit
-          </button>
+          {canEditDocument(user, facture) && (
+            <button onClick={() => navigate(`/factures/${id}/edit`)} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Pencil size={15} /> Edit
+            </button>
+          )}
           <button onClick={handleDownload} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
             <Download size={15} /> PDF
           </button>
@@ -122,9 +127,11 @@ export default function FactureDetailPage() {
               <Wallet size={15} /> Record payment
             </button>
           )}
-          <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
-            <Trash2 size={15} />
-          </button>
+          {canDeleteDocuments(user) && (
+            <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       </div>
 

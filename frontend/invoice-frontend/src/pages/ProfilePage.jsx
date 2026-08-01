@@ -6,6 +6,7 @@ import { useToast } from '../contexts/ToastContext';
 import ReferencePatternForm from '../components/settings/ReferencePatternForm';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../contexts/LanguageContext';
+import { canEditCompanySettings } from '../utils/permissions';
 function TextField({ label, ...props }) {
   return (
     <div>
@@ -20,6 +21,7 @@ export default function ProfilePage() {
   const { showToast } = useToast();
 const { t } = useTranslation();
   const { language, setLanguage } = useLanguage();
+  const canEditCompany = canEditCompanySettings(user);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirmation, setNewPasswordConfirmation] = useState('');
@@ -214,6 +216,12 @@ const { t } = useTranslation();
 
       <div className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="mb-4 text-sm font-semibold text-slate-900">Company info (shown on every PDF)</h2>
+        {!canEditCompany && (
+          <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            You don't have permission to change company settings — this section is shown for reference only.
+          </p>
+        )}
+        <fieldset disabled={!canEditCompany} className="contents">
         <form onSubmit={handleCompanySubmit} className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
@@ -302,15 +310,18 @@ const { t } = useTranslation();
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={savingCompany}
-            className="mt-1 flex w-fit items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
-          >
-            <Save size={15} />
-            {savingCompany ? 'Saving...' : 'Save company info'}
-          </button>
+          {canEditCompany && (
+            <button
+              type="submit"
+              disabled={savingCompany}
+              className="mt-1 flex w-fit items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              <Save size={15} />
+              {savingCompany ? 'Saving...' : 'Save company info'}
+            </button>
+          )}
         </form>
+        </fieldset>
       </div>
     </div>
   );

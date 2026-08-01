@@ -13,20 +13,25 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    protected $fillable = ['name', 'email', 'password', 'role', 'organization_id'];
+    protected $fillable = [
+        'name', 'email', 'password', 'role', 'organization_id',
+        'can_edit_after_sent', 'can_delete_documents', 'can_edit_reference',
+        'can_edit_company_settings', 'can_delete_records', 'is_active',
+    ];
 
     protected $hidden = ['password', 'remember_token'];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'can_edit_after_sent' => 'boolean',
+        'can_delete_documents' => 'boolean',
+        'can_edit_reference' => 'boolean',
+        'can_edit_company_settings' => 'boolean',
+        'can_delete_records' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
-    /**
-     * The tenant this account operates under: itself, if this IS an
-     * organization account; its parent, if this is staff. Null for
-     * developer accounts, which don't belong to any tenant.
-     */
     public function organizationId(): ?int
     {
         return $this->role === 'organization' ? $this->id : $this->organization_id;
@@ -42,8 +47,6 @@ class User extends Authenticatable
         return $this->hasMany(User::class, 'organization_id');
     }
 
-    // Documents this specific staff member personally created — unchanged
-    // from before, distinct from "everything the organization owns" below.
     public function devis(): HasMany
     {
         return $this->hasMany(Devis::class);
@@ -54,7 +57,6 @@ class User extends Authenticatable
         return $this->hasMany(Facture::class);
     }
 
-    // Used by the developer's organizations list to show usage counts.
     public function organizationClients(): HasMany
     {
         return $this->hasMany(Client::class, 'organization_id');
@@ -68,5 +70,35 @@ class User extends Authenticatable
     public function organizationFactures(): HasMany
     {
         return $this->hasMany(Facture::class, 'organization_id');
+    }
+
+    /**
+     * Organization and developer accounts always have full capability —
+     * these flags only ever restrict staff ('user') accounts.
+     */
+    public function hasPermission(string $permission): bool
+    {
+        if (in_array($this->role, ['organization', 'developer'], true)) {
+            return true;
+        }
+
+        return (bool) $this->{$permission};
+    }
+
+    /**
+     * A staff account is also blocked the instant its parent organization
+     * is deactivated, even while its own flag still says active.
+     */
+    public function isEffectivelyActive(): bool
+    {
+        if (! $this->is_active) {
+            return false;
+        }
+
+        if ($this->role === 'user') {
+            return (bool) $this->organization?->is_active;
+        }
+
+        return true;
     }
 }

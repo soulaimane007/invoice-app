@@ -8,6 +8,8 @@ import ConvertToInvoiceModal from '../components/devis/ConvertToInvoiceModal';
 import EditableNextReference from '../components/devis/EditableNextReference';
 import ExpandableRow, { DetailRow } from '../components/ui/ExpandableRow';
 import PerPageSelect from '../components/ui/PerPageSelect';
+import { useAuth } from '../contexts/AuthContext';
+import { canEditDocument, canDeleteDocuments } from '../utils/permissions';
 import { formatStockWarning } from '../utils/stockWarnings';
 
 function formatCurrency(value) {
@@ -26,6 +28,7 @@ const statusStyles = {
 };
 
 export default function DevisPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -119,13 +122,15 @@ export default function DevisPage() {
       ? 'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium hover:bg-slate-100'
       : 'rounded-lg p-1.5 hover:bg-slate-100';
     const iconSize = mobile ? 14 : 16;
+    const canEdit = canEditDocument(user, item, { isDevis: true });
+    const canDelete = canDeleteDocuments(user);
 
     return (
       <>
         <button onClick={() => navigate(`/devis/${item.id}`)} className={`${cls} text-slate-600`} title="View">
           <Eye size={iconSize} /> {mobile && 'View'}
         </button>
-        {!item.is_converted && (
+        {!item.is_converted && canEdit && (
           <button onClick={() => navigate(`/devis/${item.id}/edit`)} className={`${cls} text-indigo-600`} title="Edit">
             <Pencil size={iconSize} /> {mobile && 'Edit'}
           </button>
@@ -141,7 +146,7 @@ export default function DevisPage() {
             <ArrowRightLeft size={iconSize} /> {mobile && 'Convert'}
           </button>
         )}
-        {!item.is_converted && (
+        {!item.is_converted && canDelete && (
           <button onClick={() => setDeletingDevis(item)} className={`${cls} text-red-600`} title="Delete">
             <Trash2 size={iconSize} /> {mobile && 'Delete'}
           </button>

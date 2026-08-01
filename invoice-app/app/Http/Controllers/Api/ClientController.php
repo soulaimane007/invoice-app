@@ -82,9 +82,13 @@ class ClientController extends Controller
         return new ClientResource($client);
     }
 
-    public function destroy(Client $client)
+    public function destroy(Request $request, Client $client)
     {
         $this->authorize('delete', $client);
+
+        if (! $request->user()->hasPermission('can_delete_records')) {
+            abort(403, "You don't have permission to delete clients.");
+        }
 
         $client->delete();
 

@@ -18,6 +18,7 @@ import FactureDetailPage from './pages/FactureDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
 import OrganizationsPage from './pages/OrganizationsPage';
+import AuditLogsPage from './pages/AuditLogsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 
 function AuthenticatedApp() {
@@ -27,6 +28,8 @@ function AuthenticatedApp() {
     return (
       <Routes>
         <Route element={<DeveloperLayout />}>
+          <Route path="/" element={<OrganizationsPage />} />
+          <Route path="/audit-logs" element={<AuditLogsPage />} />
           <Route path="*" element={<OrganizationsPage />} />
         </Route>
       </Routes>
@@ -49,6 +52,7 @@ function AuthenticatedApp() {
         <Route path="/factures/:id/edit" element={<FactureFormPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         {user?.role === 'organization' && <Route path="/users" element={<UsersPage />} />}
+        {user?.role === 'organization' && <Route path="/audit-logs" element={<AuditLogsPage />} />}
         <Route path="*" element={<PlaceholderPage />} />
       </Route>
     </Routes>

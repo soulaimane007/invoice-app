@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  LayoutDashboard, FileText, FileSpreadsheet, Package, Users, User, LogOut, Menu, X, UserCog,
+  LayoutDashboard, FileText, FileSpreadsheet, Package, Users, User, LogOut, Menu, X, UserCog, ScrollText,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -17,7 +17,7 @@ export default function Layout() {
     { to: '/devis', label: t('nav.devis'), icon: FileSpreadsheet },
     { to: '/articles', label: t('nav.articles'), icon: Package },
     { to: '/clients', label: t('nav.clients'), icon: Users },
-    ...(user?.role === 'organization' ? [{ to: '/users', label: 'Users', icon: UserCog }] : []),
+    ...(user?.role === 'organization' ? [{ to: '/users', label: 'Users', icon: UserCog }, { to: '/audit-logs', label: 'Activity log', icon: ScrollText }] : []),
   ];
 
   return (

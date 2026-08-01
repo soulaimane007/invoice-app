@@ -23,6 +23,10 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! $user->isEffectivelyActive()) {
+            abort(403, 'This account has been deactivated. Contact your administrator.');
+        }
+
         $token = $user->createToken('api')->plainTextToken;
 
         return response()->json([

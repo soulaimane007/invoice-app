@@ -6,6 +6,8 @@ import { useToast } from '../contexts/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import ConvertToInvoiceModal from '../components/devis/ConvertToInvoiceModal';
 import { formatStockWarning } from '../utils/stockWarnings';
+import { useAuth } from '../contexts/AuthContext';
+import { canEditDocument, canDeleteDocuments } from '../utils/permissions';
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0);
@@ -23,6 +25,7 @@ const statusStyles = {
 };
 
 export default function DevisDetailPage() {
+  const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -110,7 +113,7 @@ export default function DevisDetailPage() {
         </div>
 
         <div className="flex gap-2">
-          {!devis.is_converted && (
+          {!devis.is_converted && canEditDocument(user, devis, { isDevis: true }) && (
             <button onClick={() => navigate(`/devis/${id}/edit`)} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
               <Pencil size={15} /> Edit
             </button>
@@ -126,7 +129,7 @@ export default function DevisDetailPage() {
               <ArrowRightLeft size={15} /> Convert to invoice
             </button>
           )}
-          {!devis.is_converted && (
+          {!devis.is_converted && canDeleteDocuments(user) && (
             <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
               <Trash2 size={15} />
             </button>

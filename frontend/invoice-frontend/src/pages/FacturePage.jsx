@@ -9,6 +9,8 @@ import RecordPaymentModal from '../components/facture/RecordPaymentModal';
 import ExpandableRow, { DetailRow } from '../components/ui/ExpandableRow';
 import PerPageSelect from '../components/ui/PerPageSelect';
 import EditableNextReference from '../components/devis/EditableNextReference';
+import { useAuth } from '../contexts/AuthContext';
+import { canEditDocument, canDeleteDocuments } from '../utils/permissions';
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0);
@@ -25,6 +27,7 @@ const statusStyles = {
 };
 
 export default function FacturePage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -137,15 +140,19 @@ export default function FacturePage() {
       ? 'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium hover:bg-slate-100'
       : 'rounded-lg p-1.5 hover:bg-slate-100';
     const iconSize = mobile ? 14 : 16;
+    const canEdit = canEditDocument(user, item);
+    const canDelete = canDeleteDocuments(user);
 
     return (
       <>
         <button onClick={() => navigate(`/factures/${item.id}`)} className={`${cls} text-slate-600`} title="View">
           <Eye size={iconSize} /> {mobile && 'View'}
         </button>
-        <button onClick={() => navigate(`/factures/${item.id}/edit`)} className={`${cls} text-indigo-600`} title="Edit">
-          <Pencil size={iconSize} /> {mobile && 'Edit'}
-        </button>
+        {canEdit && (
+          <button onClick={() => navigate(`/factures/${item.id}/edit`)} className={`${cls} text-indigo-600`} title="Edit">
+            <Pencil size={iconSize} /> {mobile && 'Edit'}
+          </button>
+        )}
         <button onClick={() => handleDownload(item)} className={`${cls} text-slate-600`} title="Download PDF">
           <Download size={iconSize} /> {mobile && 'PDF'}
         </button>
@@ -157,9 +164,11 @@ export default function FacturePage() {
             <Wallet size={iconSize} /> {mobile && 'Record payment'}
           </button>
         )}
-        <button onClick={() => setDeletingFacture(item)} className={`${cls} text-red-600`} title="Delete">
-          <Trash2 size={iconSize} /> {mobile && 'Delete'}
-        </button>
+        {canDelete && (
+          <button onClick={() => setDeletingFacture(item)} className={`${cls} text-red-600`} title="Delete">
+            <Trash2 size={iconSize} /> {mobile && 'Delete'}
+          </button>
+        )}
       </>
     );
   }

@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\FactureRequest;
 use App\Http\Resources\FactureResource;
 use App\Models\Facture;
+use App\Services\AuditLogService;
 use App\Services\FactureService;
 use App\Services\PdfService;
+use App\Services\ReferenceGeneratorService;
 use Illuminate\Http\Request;
 
 class FactureController extends Controller
@@ -15,6 +17,7 @@ class FactureController extends Controller
     public function __construct(
         private readonly FactureService $factureService,
         private readonly PdfService $pdfService,
+        private readonly AuditLogService $auditLog,
     ) {
     }
 
@@ -54,15 +57,19 @@ class FactureController extends Controller
         return response()->json($this->factureService->peekNextReference());
     }
 
-public function setNextReference(Request $request)
+    public function setNextReference(Request $request)
     {
         $this->authorize('create', Facture::class);
+
+        if (! $request->user()->hasPermission('can_edit_reference')) {
+            abort(403, "You don't have permission to change reference numbers.");
+        }
 
         $validated = $request->validate([
             'number' => [
                 'required', 'integer', 'min:1',
                 function ($attribute, $value, $fail) {
-                    $generator = app(\App\Services\ReferenceGeneratorService::class);
+                    $generator = app(ReferenceGeneratorService::class);
                     $reference = $generator->buildFromNumber('facture', (int) $value);
                     if ($generator->exists('facture', $reference)) {
                         $fail("La référence \"{$reference}\" existe déjà.");
@@ -74,13 +81,16 @@ public function setNextReference(Request $request)
         return response()->json($this->factureService->setNextReferenceNumber($validated['number']));
     }
 
-    public function store(FactureRequest $request)    {
+    public function store(FactureRequest $request)
+    {
         $this->authorize('create', Facture::class);
 
         $data = $request->validated();
         $data['user_id'] = $request->user()->id;
 
         $result = $this->factureService->create($data);
+
+        $this->auditLog->log($request->user()->organizationId(), 'facture.created', $result['facture'], $result['facture']->reference);
 
         return (new FactureResource($result['facture']->load(['client', 'lignes.article', 'lignes.matricules'])))
             ->additional(['stock_warnings' => $result['warnings']]);
@@ -97,17 +107,36 @@ public function setNextReference(Request $request)
     {
         $this->authorize('update', $facture);
 
+        if (! $request->user()->hasPermission('can_edit_after_sent')) {
+            abort(403, "You don't have permission to edit an invoice after it's been issued.");
+        }
+
+        $oldReferenceNumber = $facture->reference_number;
+
         $result = $this->factureService->update($facture, $request->validated());
+
+        $metadata = [];
+        if ($result['facture']->reference_number !== $oldReferenceNumber) {
+            $metadata['reference_changed'] = ['from' => $oldReferenceNumber, 'to' => $result['facture']->reference_number];
+        }
+        $this->auditLog->log($request->user()->organizationId(), 'facture.updated', $result['facture'], $result['facture']->reference, $metadata);
 
         return (new FactureResource($result['facture']->load(['client', 'lignes.article', 'lignes.matricules'])))
             ->additional(['stock_warnings' => $result['warnings']]);
     }
 
-    public function destroy(Facture $facture)
+    public function destroy(Request $request, Facture $facture)
     {
         $this->authorize('delete', $facture);
 
+        if (! $request->user()->hasPermission('can_delete_documents')) {
+            abort(403, "You don't have permission to delete invoices.");
+        }
+
+        $reference = $facture->reference;
         $this->factureService->delete($facture);
+
+        $this->auditLog->log($request->user()->organizationId(), 'facture.deleted', null, $reference);
 
         return response()->json(['message' => 'Invoice deleted.']);
     }
@@ -122,6 +151,11 @@ public function setNextReference(Request $request)
         ]);
 
         $result = $this->factureService->recordPayment($facture, $validated['payment_status'], $validated['amount_paid']);
+
+        $this->auditLog->log($request->user()->organizationId(), 'facture.payment_recorded', $result['facture'], $result['facture']->reference, [
+            'status' => $validated['payment_status'],
+            'amount_paid' => $validated['amount_paid'],
+        ]);
 
         return new FactureResource($result['facture']->load(['client', 'lignes.article', 'lignes.matricules']));
     }

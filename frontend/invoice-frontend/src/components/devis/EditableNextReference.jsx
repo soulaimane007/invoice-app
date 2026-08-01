@@ -2,8 +2,12 @@ import { useState } from 'react';
 import { Pencil, Check, X } from 'lucide-react';
 import apiClient from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { canEditReference } from '../../utils/permissions';
 
 export default function EditableNextReference({ documentType, value, onChange }) {
+  const { user } = useAuth();
+  const editable = canEditReference(user);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -36,6 +40,14 @@ export default function EditableNextReference({ documentType, value, onChange })
   }
 
   if (!value) return null;
+
+  if (!editable) {
+    return (
+      <span className="text-xs text-slate-400">
+        Next: <span className="font-mono text-slate-600">{value.reference}</span>
+      </span>
+    );
+  }
 
   if (editing) {
     return (

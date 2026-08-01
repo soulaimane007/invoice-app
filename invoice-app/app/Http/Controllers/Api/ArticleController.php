@@ -105,12 +105,14 @@ public function history(Request $request, Article $article)
         return new ArticleResource($article);
     }
 
-    public function destroy(Article $article)
+public function destroy(Request $request, Article $article)
     {
         $this->authorize('delete', $article);
 
-        $article->delete();
+        if (! $request->user()->hasPermission('can_delete_records')) {
+            abort(403, "You don't have permission to delete articles.");
+        }
 
-        return response()->json(['message' => 'Article deleted.']);
+        $article->delete();
     }
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { LogOut, KeyRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -68,12 +68,21 @@ export default function DeveloperLayout() {
   const { user, logout } = useAuth();
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
+  const tabClass = ({ isActive }) =>
+    `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`;
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
-        <div>
-          <span className="text-lg font-semibold text-slate-900">InvoiceApp</span>
-          <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">Developer</span>
+      <header className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex items-center gap-4">
+          <div>
+            <span className="text-lg font-semibold text-slate-900">InvoiceApp</span>
+            <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">Developer</span>
+          </div>
+          <nav className="flex gap-1">
+            <NavLink to="/" end className={tabClass}>Organizations</NavLink>
+            <NavLink to="/audit-logs" className={tabClass}>Activity log</NavLink>
+          </nav>
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden text-sm text-slate-500 sm:inline">{user?.name}</span>

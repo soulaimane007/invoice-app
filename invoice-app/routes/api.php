@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\ArticleController;
 use App\Http\Controllers\Api\ArticleMatriculeController;
+use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\CompanySettingController;
@@ -15,19 +16,26 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::put('/auth/password', [AuthController::class, 'updatePassword']);
 
+    Route::middleware('role:organization,developer')->get('/audit-logs', [AuditLogController::class, 'index']);
+
     Route::middleware('role:developer')->group(function () {
         Route::get('/organizations', [OrganizationController::class, 'index']);
         Route::post('/organizations', [OrganizationController::class, 'store']);
+        Route::put('/organizations/{organization}/password', [OrganizationController::class, 'resetPassword']);
+        Route::put('/organizations/{organization}/active', [OrganizationController::class, 'toggleActive']);
     });
 
     Route::middleware('role:organization')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
+        Route::put('/users/{user}', [UserController::class, 'update']);
+        Route::put('/users/{user}/password', [UserController::class, 'resetPassword']);
+        Route::put('/users/{user}/active', [UserController::class, 'toggleActive']);
     });
 
     Route::middleware('role:organization,user')->group(function () {

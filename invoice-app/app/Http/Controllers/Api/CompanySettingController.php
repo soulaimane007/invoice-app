@@ -5,11 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CompanySettingResource;
 use App\Models\CompanySetting;
+use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class CompanySettingController extends Controller
 {
+    public function __construct(private readonly AuditLogService $auditLog)
+    {
+    }
+
     public function show()
     {
         return new CompanySettingResource(CompanySetting::current());
@@ -17,6 +22,10 @@ class CompanySettingController extends Controller
 
     public function update(Request $request)
     {
+        if (! $request->user()->hasPermission('can_edit_company_settings')) {
+            abort(403, "You don't have permission to change company settings.");
+        }
+
         $validated = $request->validate([
             'company_name' => ['required', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
@@ -59,6 +68,8 @@ class CompanySettingController extends Controller
 
         unset($validated['logo']);
         $settings->update($validated);
+
+        $this->auditLog->log($request->user()->organizationId(), 'company_settings.updated', $settings, $settings->company_name);
 
         return new CompanySettingResource($settings->fresh());
     }
