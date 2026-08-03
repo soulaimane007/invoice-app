@@ -36,9 +36,18 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::put('/users/{user}', [UserController::class, 'update']);
         Route::put('/users/{user}/password', [UserController::class, 'resetPassword']);
         Route::put('/users/{user}/active', [UserController::class, 'toggleActive']);
+
+Route::post('/document-templates', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'store']);
+    Route::post('/document-templates/import', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'import']);
+    Route::put('/document-templates/{document_template}', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'update']);
+    Route::delete('/document-templates/{document_template}', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'destroy']);
     });
 
     Route::middleware('role:organization,user')->group(function () {
+     Route::get('/document-templates', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'index']);
+    Route::post('/document-templates/preview', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'preview']);
+    Route::get('/document-templates/{document_template}', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'show']);
+    Route::get('/document-templates/{document_template}/export', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'export']);
         Route::get('/dashboard', [DashboardController::class, 'index']);
         Route::get('/dashboard/daily-revenue', [DashboardController::class, 'dailyRevenue']);
 
@@ -53,6 +62,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::delete('/sous-clients/{sousClient}', [SousClientController::class, 'destroy']);
 
         Route::get('/articles/stats', [ArticleController::class, 'stats']);
+        Route::get('/articles/distinct-units', [ArticleController::class, 'distinctUnits']);
         Route::get('/articles/autocomplete', [ArticleController::class, 'autocomplete']);
         Route::apiResource('articles', ArticleController::class);
         Route::get('/articles/{article}/history', [ArticleController::class, 'history']);
@@ -61,6 +71,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('/articles/{article}/matricules', [ArticleMatriculeController::class, 'store']);
         Route::delete('/article-matricules/{articleMatricule}', [ArticleMatriculeController::class, 'destroy']);
 
+        Route::post('/devis/bulk-pdf', [DevisController::class, 'bulkDownloadPdf']);
         Route::get('/devis/next-reference', [DevisController::class, 'nextReference']);
         Route::put('/devis/next-reference', [DevisController::class, 'setNextReference']);
         Route::get('/devis/{devis}/pdf', [DevisController::class, 'downloadPdf']);
@@ -68,6 +79,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('/devis/{devis}/duplicate', [DevisController::class, 'duplicate']);
         Route::apiResource('devis', DevisController::class)->parameters(['devis' => 'devis']);
 
+        Route::post('/facture/bulk-pdf', [FactureController::class, 'bulkDownloadPdf']);
         Route::get('/facture/next-reference', [FactureController::class, 'nextReference']);
         Route::put('/facture/next-reference', [FactureController::class, 'setNextReference']);
         Route::get('/facture/{facture}/pdf', [FactureController::class, 'downloadPdf']);

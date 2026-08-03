@@ -10,6 +10,7 @@ use App\Models\Devis;
 use App\Services\AuditLogService;
 use App\Services\DevisService;
 use App\Services\PdfService;
+use App\Models\DocumentTemplate;
 use App\Services\ReferenceGeneratorService;
 use Illuminate\Http\Request;
 
@@ -206,9 +207,35 @@ class DevisController extends Controller
             ->additional(['stock_warnings' => $result['warnings']]);
     }
 
-    public function downloadPdf(Devis $devis)
+    public function bulkDownloadPdf(Request $request)
+    {
+        $this->authorize('viewAny', Devis::class);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+            'template_id' => ['required', 'integer'],
+        ]);
+
+        $devisList = Devis::whereIn('id', $validated['ids'])->get();
+        foreach ($devisList as $devis) {
+            $this->authorize('view', $devis);
+        }
+
+        $template = DocumentTemplate::where('document_type', 'devis')->findOrFail($validated['template_id']);
+
+        return $this->pdfService->bulkWithTemplate($devisList, $template, 'devis')->download('devis.pdf');
+    }
+
+    public function downloadPdf(Request $request, Devis $devis)
     {
         $this->authorize('view', $devis);
+
+        if ($request->filled('template_id')) {
+            $template = DocumentTemplate::where('document_type', 'devis')->findOrFail($request->query('template_id'));
+
+            return $this->pdfService->devisWithTemplate($devis, $template)->download("{$devis->reference}.pdf");
+        }
 
         return $this->pdfService->devis($devis)->download("{$devis->reference}.pdf");
     }

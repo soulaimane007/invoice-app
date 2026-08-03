@@ -160,9 +160,35 @@ class FactureController extends Controller
         return new FactureResource($result['facture']->load(['client', 'lignes.article', 'lignes.matricules']));
     }
 
-    public function downloadPdf(Facture $facture)
+   public function bulkDownloadPdf(Request $request)
+    {
+        $this->authorize('viewAny', Facture::class);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+            'template_id' => ['required', 'integer'],
+        ]);
+
+        $factureList = Facture::whereIn('id', $validated['ids'])->get();
+        foreach ($factureList as $facture) {
+            $this->authorize('view', $facture);
+        }
+
+        $template = \App\Models\DocumentTemplate::where('document_type', 'facture')->findOrFail($validated['template_id']);
+
+        return $this->pdfService->bulkWithTemplate($factureList, $template, 'facture')->download('factures.pdf');
+    }
+
+    public function downloadPdf(Request $request, Facture $facture)
     {
         $this->authorize('view', $facture);
+
+        if ($request->filled('template_id')) {
+            $template = \App\Models\DocumentTemplate::where('document_type', 'facture')->findOrFail($request->query('template_id'));
+
+            return $this->pdfService->factureWithTemplate($facture, $template)->download("{$facture->reference}.pdf");
+        }
 
         return $this->pdfService->facture($facture)->download("{$facture->reference}.pdf");
     }

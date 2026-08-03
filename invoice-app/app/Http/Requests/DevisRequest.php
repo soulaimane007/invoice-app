@@ -60,8 +60,17 @@ class DevisRequest extends FormRequest
             'lines' => [$isUpdate ? 'sometimes' : 'required', 'array', 'min:1'],
             'lines.*.article_id' => ['nullable', 'integer', 'exists:articles,id'],
             'lines.*.description' => ['required_with:lines', 'string'],
-            'lines.*.quantity' => ['required_with:lines', 'numeric', 'min:0.01'],
-            'lines.*.unit_price' => ['required_with:lines', 'numeric', 'min:0'],
+'lines.*.quantity' => [
+                'nullable', 'numeric', 'min:0.01',
+                function ($attribute, $value, $fail) {
+                    preg_match('/lines\.(\d+)\.quantity/', $attribute, $matches);
+                    $index = $matches[1] ?? null;
+                    $isService = $this->input("lines.{$index}.is_service");
+                    if (! $isService && $value === null) {
+                        $fail('La quantité est obligatoire pour un article.');
+                    }
+                },
+            ],            'lines.*.unit_price' => ['required_with:lines', 'numeric', 'min:0'],
             'lines.*.unit' => ['nullable', 'string', 'max:30'],
             'lines.*.is_service' => ['nullable', 'boolean'],
             'lines.*.tva_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],

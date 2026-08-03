@@ -227,14 +227,16 @@ class FactureService
         $warnings = [];
 
         foreach ($lines as $index => $line) {
-            $quantity = (float) ($line['quantity'] ?? 1);
             $unitPrice = (float) ($line['unit_price'] ?? 0);
             $tvaRate = (float) ($line['tva_rate'] ?? 20);
             $description = $line['description'] ?? '';
             $unit = $line['unit'] ?? null;
             $isService = (bool) ($line['is_service'] ?? false);
 
-            $totalHt = $quantity * $unitPrice;
+            // Same rule as DevisService — a service is stored with a
+            // genuinely NULL quantity, and its total is the price alone.
+            $quantity = $isService ? null : (float) ($line['quantity'] ?? 1);
+            $totalHt = $isService ? $unitPrice : $quantity * $unitPrice;
             $totalTtc = $totalHt * (1 + $tvaRate / 100);
 
             $articleId = $isService ? null : ($line['article_id'] ?? null);

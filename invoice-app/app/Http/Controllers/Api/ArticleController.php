@@ -41,6 +41,13 @@ class ArticleController extends Controller
         return ArticleResource::collection($articles);
     }
 
+    public function distinctUnits()
+    {
+        $units = Article::whereNotNull('unit')->where('unit', '!=', '')->distinct()->pluck('unit')->values();
+
+        return response()->json(['units' => $units]);
+    }
+
     public function stats()
     {
         return response()->json($this->articleService->getStats());

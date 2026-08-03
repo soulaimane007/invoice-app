@@ -1,0 +1,89 @@
+/* SINGLE SOURCE OF TRUTH for how saved template content actually looks.
+   The PDF reads this exact file directly from disk (see
+   custom-template.blade.php). The live editor and Aperçu load this
+   exact same file over the network. There is no second copy anywhere
+   — change this file once, both places change together. */
+
+.tpl-print-content {
+  font-family: 'DejaVu Sans', Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+
+.tpl-print-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 22px;
+  margin-bottom: 10px;
+  table-layout: fixed;
+}
+
+.tpl-print-content p {
+  margin: 0 0 6px 0;
+  min-height: 1.2em;
+}
+
+.tpl-print-content h1 { font-size: 20px; margin: 0 0 6px 0; }
+.tpl-print-content h2 { font-size: 16px; margin: 0 0 6px 0; }
+.tpl-print-content h3 { font-size: 13px; margin: 0 0 6px 0; }
+
+.tpl-print-content blockquote {
+  border-left: 3px solid #cea23c;
+  padding-left: 12px;
+  color: #5a5346;
+  font-style: italic;
+  margin: 6px 0;
+}
+.tpl-print-content code {
+  background: #f4e8c8;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.tpl-print-content pre {
+  background: #181513;
+  color: #f8f7f5;
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.tpl-print-content pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+.tpl-print-content hr {
+  border: none;
+  border-top: 1px solid #d9d5cd;
+  margin: 12px 0;
+}
+.tpl-print-content a {
+  color: #966c22;
+  text-decoration: underline;
+}
+.tpl-print-content img {
+  max-width: 100%;
+}
+
+.tpl-print-content table td,
+.tpl-print-content table th {
+  padding: var(--tpl-cell-padding, 4px) 8px;
+  text-align: left;
+  vertical-align: top;
+  word-wrap: break-word;
+}
+.tpl-print-content table th {
+  text-align: center;
+}
+
+.tpl-print-content table.tpl-bordered td,
+.tpl-print-content table.tpl-bordered th {
+  border-width: var(--tpl-border-width, 2px) !important;
+  border-style: solid !important;
+  border-color: #48423a !important;
+}
+.tpl-print-content table.tpl-bordered th {
+  background: #eeece8;
+  font-weight: 600;
+}

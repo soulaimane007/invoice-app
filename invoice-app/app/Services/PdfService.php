@@ -28,4 +28,44 @@ class PdfService
             'company' => CompanySetting::current(),
         ])->setPaper('a4', 'portrait');
     }
+public function devisWithTemplate(\App\Models\Devis $devis, \App\Models\DocumentTemplate $template)
+    {
+        $renderer = app(\App\Services\TemplateRendererService::class);
+        $renderedContent = $renderer->render($template->content, $devis, 'devis');
+
+        return Pdf::loadView('pdf.custom-template', [
+            'renderedContent' => $renderedContent,
+            'pageFormat' => $template->page_format ?? 'A4',
+        ]);
+    }
+
+    public function factureWithTemplate(\App\Models\Facture $facture, \App\Models\DocumentTemplate $template)
+    {
+        $renderer = app(\App\Services\TemplateRendererService::class);
+        $renderedContent = $renderer->render($template->content, $facture, 'facture');
+
+        return Pdf::loadView('pdf.custom-template', [
+            'renderedContent' => $renderedContent,
+            'pageFormat' => $template->page_format ?? 'A4',
+        ]);
+    }
+
+    public function bulkWithTemplate($documents, \App\Models\DocumentTemplate $template, string $documentType)
+    {
+        $renderer = app(\App\Services\TemplateRendererService::class);
+        $documents = $documents->values();
+        $lastIndex = $documents->count() - 1;
+
+        $combined = $documents->map(function ($document, $index) use ($renderer, $template, $documentType, $lastIndex) {
+            $rendered = $renderer->render($template->content, $document, $documentType);
+            $style = $index < $lastIndex ? ' style="page-break-after: always;"' : '';
+
+            return "<div{$style}>{$rendered}</div>";
+        })->implode('');
+
+        return Pdf::loadView('pdf.custom-template', [
+            'renderedContent' => $combined,
+            'pageFormat' => $template->page_format ?? 'A4',
+        ]);
+    }
 }
