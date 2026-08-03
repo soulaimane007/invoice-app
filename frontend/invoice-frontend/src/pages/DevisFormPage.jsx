@@ -29,17 +29,13 @@ function emptyLine() {
   };
 }
 
+// A service line has no quantity concept at all — its total is simply
+// the price entered, never multiplied by anything. Everything else
+// still multiplies quantity × price as usual.
 function calculateLine(line) {
-  const parsedQuantity = parseFloat(line.quantity);
-  // A service left with no quantity typed in still needs to price out —
-  // treat that as "1", so the amount entered IS the line total.
-  const quantity = line.is_service && (line.quantity === '' || isNaN(parsedQuantity))
-    ? 1
-    : (parsedQuantity || 0);
   const unitPrice = parseFloat(line.unit_price) || 0;
   const tvaRate = parseFloat(line.tva_rate) || 0;
-
-  const totalHt = quantity * unitPrice;
+  const totalHt = line.is_service ? unitPrice : (parseFloat(line.quantity) || 0) * unitPrice;
   const totalTtc = totalHt * (1 + tvaRate / 100);
 
   return { totalHt, totalTtc };
@@ -109,7 +105,7 @@ export default function DevisFormPage() {
                 description: l.description,
                 unit: l.unit ?? 'Unité',
                 is_service: Boolean(l.is_service),
-                quantity: String(l.quantity),
+                quantity: l.quantity === null || l.quantity === undefined ? '' : String(l.quantity),
                 unit_price: String(l.unit_price),
                 tva_rate: String(l.tva_rate),
               }))
@@ -184,13 +180,9 @@ export default function DevisFormPage() {
   }
 
   function toggleLineService(tempId, checked) {
-    setLines((prev) => prev.map((l) => {
-      if (l.tempId !== tempId) return l;
-      // Blank the quantity when a fresh, untouched line becomes a
-      // service — nothing to correct if the user already typed a real one.
-      const quantity = checked && l.quantity === '1' ? '' : l.quantity;
-      return { ...l, is_service: checked, article_id: checked ? null : l.article_id, quantity };
-    }));
+    setLines((prev) => prev.map((l) => (
+      l.tempId === tempId ? { ...l, is_service: checked, article_id: checked ? null : l.article_id } : l
+    )));
   }
 
   function removeLine(tempId) {
@@ -217,19 +209,15 @@ export default function DevisFormPage() {
       comment,
       lines: lines
         .filter((l) => l.description.trim() !== '')
-        .map((l) => {
-          const parsedQuantity = parseFloat(l.quantity);
-          const quantity = l.is_service && (l.quantity === '' || isNaN(parsedQuantity)) ? 1 : (parsedQuantity || 0);
-          return {
-            article_id: l.article_id,
-            description: l.description,
-            unit: l.unit || 'Unité',
-            is_service: l.is_service,
-            quantity,
-            unit_price: parseFloat(l.unit_price) || 0,
-            tva_rate: parseFloat(l.tva_rate) || 0,
-          };
-        }),
+        .map((l) => ({
+          article_id: l.article_id,
+          description: l.description,
+          unit: l.unit || 'Unité',
+          is_service: l.is_service,
+          quantity: l.is_service ? null : (parseFloat(l.quantity) || 0),
+          unit_price: parseFloat(l.unit_price) || 0,
+          tva_rate: parseFloat(l.tva_rate) || 0,
+        })),
     };
 
     try {
@@ -423,10 +411,12 @@ export default function DevisFormPage() {
                       <td className="px-2 py-2 align-top">
                         <input
                           type="number" min="0" step="0.01"
-                          value={line.quantity}
+                          value={line.is_service ? '' : line.quantity}
                           onChange={(e) => updateLine(line.tempId, 'quantity', e.target.value)}
-                          placeholder={line.is_service ? '1' : undefined}
-                          className="w-20 rounded-lg border border-noir-300 px-2 py-1.5 text-right text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+                          disabled={line.is_service}
+                          placeholder={line.is_service ? '—' : undefined}
+                          title={line.is_service ? "Sans objet pour un service — le montant est ajouté tel quel." : undefined}
+                          className="w-20 rounded-lg border border-noir-300 px-2 py-1.5 text-right text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500 disabled:cursor-not-allowed disabled:border-noir-200 disabled:bg-noir-50 disabled:text-noir-300"
                         />
                       </td>
                       <td className="px-2 py-2 align-top">
@@ -496,10 +486,11 @@ export default function DevisFormPage() {
                       <label className="mb-0.5 block text-xs text-noir-500">{t('form.qty')}</label>
                       <input
                         type="number" min="0" step="0.01"
-                        value={line.quantity}
+                        value={line.is_service ? '' : line.quantity}
                         onChange={(e) => updateLine(line.tempId, 'quantity', e.target.value)}
-                        placeholder={line.is_service ? '1' : undefined}
-                        className="w-full rounded-lg border border-noir-300 px-2 py-1.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+                        disabled={line.is_service}
+                        placeholder={line.is_service ? '—' : undefined}
+                        className="w-full rounded-lg border border-noir-300 px-2 py-1.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500 disabled:cursor-not-allowed disabled:border-noir-200 disabled:bg-noir-50 disabled:text-noir-300"
                       />
                     </div>
                     <div>

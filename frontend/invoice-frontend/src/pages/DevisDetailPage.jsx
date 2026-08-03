@@ -8,6 +8,7 @@ import ConvertToInvoiceModal from '../components/devis/ConvertToInvoiceModal';
 import { formatStockWarning } from '../utils/stockWarnings';
 import { useAuth } from '../contexts/AuthContext';
 import { canEditDocument, canDeleteDocuments } from '../utils/permissions';
+import DownloadPdfButton from '../components/templates/DownloadPdfButton';
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0);
@@ -71,22 +72,6 @@ export default function DevisDetailPage() {
     }
   }
 
-  async function handleDownload() {
-    try {
-      const res = await apiClient.get(`/devis/${id}/pdf`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${devis.reference}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      showToast('Could not download the PDF.', 'error');
-    }
-  }
-
   if (loading || !devis) {
     return <p className="text-sm text-slate-500">Loading...</p>;
   }
@@ -118,9 +103,7 @@ export default function DevisDetailPage() {
               <Pencil size={15} /> Edit
             </button>
           )}
-          <button onClick={handleDownload} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            <Download size={15} /> PDF
-          </button>
+          <DownloadPdfButton documentType="devis" documentId={id} reference={devis.reference} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" mobile />
           <button onClick={handleDuplicate} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
             <Copy size={15} /> Duplicate
           </button>

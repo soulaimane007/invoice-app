@@ -31,20 +31,13 @@ function emptyLine() {
   };
 }
 
-function resolveQuantity(line) {
-  const parsed = parseFloat(line.quantity);
-  if (line.is_service && (line.quantity === '' || isNaN(parsed))) {
-    return 1;
-  }
-  return parsed || 0;
-}
-
+// A service line has no quantity concept at all — its total is simply
+// the price entered, never multiplied by anything. Everything else
+// still multiplies quantity × price as usual.
 function calculateLine(line) {
-  const quantity = resolveQuantity(line);
   const unitPrice = parseFloat(line.unit_price) || 0;
   const tvaRate = parseFloat(line.tva_rate) || 0;
-
-  const totalHt = quantity * unitPrice;
+  const totalHt = line.is_service ? unitPrice : (parseFloat(line.quantity) || 0) * unitPrice;
   const totalTtc = totalHt * (1 + tvaRate / 100);
 
   return { totalHt, totalTtc };
@@ -115,7 +108,7 @@ export default function FactureFormPage() {
                 description: l.description,
                 unit: l.unit ?? 'Unité',
                 is_service: Boolean(l.is_service),
-                quantity: String(l.quantity),
+                quantity: l.quantity === null || l.quantity === undefined ? '' : String(l.quantity),
                 unit_price: String(l.unit_price),
                 tva_rate: String(l.tva_rate),
                 matricules: (l.matricules || []).map((m) => m.matricule),
@@ -146,10 +139,10 @@ export default function FactureFormPage() {
               description: l.description,
               unit: l.unit ?? 'Unité',
               is_service: Boolean(l.is_service),
-              quantity: String(l.quantity),
+              quantity: l.quantity === null || l.quantity === undefined ? '' : String(l.quantity),
               unit_price: String(l.unit_price),
               tva_rate: String(l.tva_rate),
-              matricules: [],
+              matricules: [], // never copied — each matricule belongs to the unit sold on the original invoice
             }))
           : [emptyLine()]);
       }
@@ -219,18 +212,16 @@ export default function FactureFormPage() {
     setLines((prev) => prev.map((l) => (l.tempId === tempId ? { ...l, [field]: value } : l)));
   }
 
+  // Quantity itself is left untouched here on purpose — the field is
+  // simply hidden/disabled while is_service is true (see the value=
+  // ternaries below), so toggling Service back off restores whatever
+  // quantity was there before, rather than losing it.
   function toggleLineService(tempId, checked) {
-    setLines((prev) => prev.map((l) => {
-      if (l.tempId !== tempId) return l;
-      const quantity = checked && l.quantity === '1' ? '' : l.quantity;
-      return {
-        ...l,
-        is_service: checked,
-        article_id: checked ? null : l.article_id,
-        matricules: checked ? [] : l.matricules,
-        quantity,
-      };
-    }));
+    setLines((prev) => prev.map((l) => (
+      l.tempId === tempId
+        ? { ...l, is_service: checked, article_id: checked ? null : l.article_id, matricules: checked ? [] : l.matricules }
+        : l
+    )));
   }
 
   function updateLineMatricule(tempId, index, value) {
@@ -271,7 +262,7 @@ export default function FactureFormPage() {
           description: l.description,
           unit: l.unit || 'Unité',
           is_service: l.is_service,
-          quantity: resolveQuantity(l),
+          quantity: l.is_service ? null : (parseFloat(l.quantity) || 0),
           unit_price: parseFloat(l.unit_price) || 0,
           tva_rate: parseFloat(l.tva_rate) || 0,
           matricules: (l.matricules || []).filter((m) => m && m.trim() !== ''),
@@ -475,10 +466,12 @@ export default function FactureFormPage() {
                         <td className="px-2 py-2 align-top">
                           <input
                             type="number" min="0" step="0.01"
-                            value={line.quantity}
+                            value={line.is_service ? '' : line.quantity}
                             onChange={(e) => updateLine(line.tempId, 'quantity', e.target.value)}
-                            placeholder={line.is_service ? '1' : undefined}
-                            className="w-20 rounded-lg border border-noir-300 px-2 py-1.5 text-right text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+                            disabled={line.is_service}
+                            placeholder={line.is_service ? '—' : undefined}
+                            title={line.is_service ? "Sans objet pour un service — le montant est ajouté tel quel." : undefined}
+                            className="w-20 rounded-lg border border-noir-300 px-2 py-1.5 text-right text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500 disabled:cursor-not-allowed disabled:border-noir-200 disabled:bg-noir-50 disabled:text-noir-300"
                           />
                         </td>
                         <td className="px-2 py-2 align-top">
@@ -572,10 +565,11 @@ export default function FactureFormPage() {
                       <label className="mb-0.5 block text-xs text-noir-500">{t('form.qty')}</label>
                       <input
                         type="number" min="0" step="0.01"
-                        value={line.quantity}
+                        value={line.is_service ? '' : line.quantity}
                         onChange={(e) => updateLine(line.tempId, 'quantity', e.target.value)}
-                        placeholder={line.is_service ? '1' : undefined}
-                        className="w-full rounded-lg border border-noir-300 px-2 py-1.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500"
+                        disabled={line.is_service}
+                        placeholder={line.is_service ? '—' : undefined}
+                        className="w-full rounded-lg border border-noir-300 px-2 py-1.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500 disabled:cursor-not-allowed disabled:border-noir-200 disabled:bg-noir-50 disabled:text-noir-300"
                       />
                     </div>
                     <div>

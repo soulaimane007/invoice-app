@@ -37,3 +37,148 @@ body {
     font-size: 16px;
   }
 }
+
+/* ===== Template editor canvas ===== */
+
+.tpl-page-content {
+  outline: none;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+
+.tpl-page-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 22px;
+  margin-bottom: 10px;
+}
+
+.tpl-page-content p {
+  margin: 0 0 6px 0;
+  min-height: 1.2em;
+}
+
+.tpl-page-content blockquote {
+  border-left: 3px solid #cea23c;
+  padding-left: 12px;
+  color: #5a5346;
+  font-style: italic;
+}
+.tpl-page-content code {
+  background: #f4e8c8;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.tpl-page-content pre {
+  background: #181513;
+  color: #f8f7f5;
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.tpl-page-content pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+.tpl-page-content hr {
+  border: none;
+  border-top: 1px solid #d9d5cd;
+  margin: 12px 0;
+}
+.tpl-page-content a {
+  color: #966c22;
+  text-decoration: underline;
+}
+.tpl-conditional-block {
+  border-left: 3px solid var(--color-gold-400, #cea23c);
+  background: rgba(206, 162, 60, 0.06);
+  padding: 4px 8px;
+  margin: 4px 0;
+}
+.tpl-conditional-inline {
+  border-bottom: 2px dotted var(--color-gold-400, #cea23c);
+}
+
+.tpl-page-content table td,
+.tpl-page-content table th {
+  padding: var(--tpl-cell-padding, 4px) 8px;
+}
+
+/* Baseline: every table gets the dashed "fictif" look by default. */
+.tpl-page-content table td,
+.tpl-page-content table th {
+  border: 1px dashed #d4cfc0 !important;
+}
+
+/* Bordered override — deliberately covers TWO possible locations for
+   the class, confirmed directly from a live DOM inspection: it lands
+   on the <table> itself in freshly-saved/reloaded HTML, but on an
+   ANCESTOR .tableWrapper div during live editing (Table's resizable
+   mode wraps the real <table> in that div, and that's the element
+   ProseMirror's decoration actually attaches the class to). Both
+   selectors have higher specificity than the baseline above, so
+   whichever one matches wins regardless of source order. */
+.tpl-page-content table.tpl-bordered td,
+.tpl-page-content table.tpl-bordered th {
+  border-width: var(--tpl-border-width, 2px) !important;
+  border-style: solid !important;
+  border-color: #48423a !important;
+}
+
+/* Per-side "hidden" borders — a dashed positioning guide in the editor
+   only. The real removal happens on the backend when a PDF is actually
+   generated, so this never affects the download. */
+.tpl-page-content .tpl-hidden-border-top { border-top: 1px dashed #b7b0a3 !important; }
+.tpl-page-content .tpl-hidden-border-right { border-right: 1px dashed #b7b0a3 !important; }
+.tpl-page-content .tpl-hidden-border-bottom { border-bottom: 1px dashed #b7b0a3 !important; }
+.tpl-page-content .tpl-hidden-border-left { border-left: 1px dashed #b7b0a3 !important; }
+.tpl-page-content .tpl-bordered table td,
+.tpl-page-content .tpl-bordered table th {
+  border: 2px solid #48423a !important;
+}
+.tpl-page-content table.tpl-bordered th,
+.tpl-page-content .tpl-bordered table th {
+  background: #eeece8;
+  font-weight: 600;
+}
+
+/* Same dual-location logic for the status label. */
+.tpl-page-content table::before {
+  content: "Repère (invisible au téléchargement)";
+  display: block;
+  width: fit-content;
+  font-size: 10px;
+  color: #726a5c;
+  background: #eeece8;
+  padding: 2px 8px;
+  margin-bottom: 4px;
+  border-radius: 3px;
+}
+.tpl-page-content table.tpl-bordered::before,
+.tpl-page-content .tpl-bordered table::before {
+  content: "✓ Visible au téléchargement";
+  color: #ffffff;
+  background: #059669;
+  font-weight: 700;
+}
+
+/* Preview mode: hide every editor-only helper — labels and the dashed
+   placeholder-table guide — so what you see matches the real PDF, not
+   the template-building aids. */
+.tpl-preview-mode table::before {
+  display: none !important;
+}
+.tpl-preview-mode table:not(.tpl-bordered) td,
+.tpl-preview-mode table:not(.tpl-bordered) th {
+  border: none !important;
+}
+
+/* Editor-only marker so a cell flagged to merge across future lines is
+   visible at a glance, the same way bordered tables get their label. */
+.tpl-page-content .tpl-span-all-lines {
+  outline: 2px dashed var(--color-gold-400, #cea23c);
+  outline-offset: -2px;
+}

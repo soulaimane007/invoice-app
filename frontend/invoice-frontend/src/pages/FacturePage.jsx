@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, Pencil, Trash2, Download, Copy, Wallet, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Plus, Search, Eye, Pencil, Trash2, Copy, Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
 import apiClient, { unwrap, unwrapPage } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
-import SortableHeader from '../components/ui/SortableHeader';
 import RecordPaymentModal from '../components/facture/RecordPaymentModal';
+import EditableNextReference from '../components/devis/EditableNextReference';
 import ExpandableRow, { DetailRow } from '../components/ui/ExpandableRow';
 import PerPageSelect from '../components/ui/PerPageSelect';
-import EditableNextReference from '../components/devis/EditableNextReference';
 import { useAuth } from '../contexts/AuthContext';
 import { canEditDocument, canDeleteDocuments } from '../utils/permissions';
+import DownloadPdfButton from '../components/templates/DownloadPdfButton';
+import BulkDownloadBar from '../components/templates/BulkDownloadBar';
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0);
@@ -20,7 +21,7 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('fr-FR');
 }
 
-const statusStyles = {
+const paymentStatusStyles = {
   unpaid: 'bg-red-100 text-red-700',
   partial: 'bg-amber-100 text-amber-700',
   paid: 'bg-emerald-100 text-emerald-700',
@@ -37,37 +38,28 @@ export default function FacturePage() {
   const [perPage, setPerPage] = useState(10);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [sortBy, setSortBy] = useState('reference');
-  const [sortDir, setSortDir] = useState('desc');
-  const [nextReference, setNextReference] = useState(null);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
 
   const [deletingFacture, setDeletingFacture] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [payingFacture, setPayingFacture] = useState(null);
+  const [nextReference, setNextReference] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  function toggleSelect(id) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 350);
+    const timeout = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
     return () => clearTimeout(timeout);
   }, [search]);
 
   function loadFactures() {
     setLoading(true);
     apiClient
-      .get('/facture', {
-        params: {
-          search: debouncedSearch || undefined,
-          payment_status: statusFilter || undefined,
-          sort_by: sortBy,
-          sort_dir: sortDir,
-          page,
-          per_page: perPage,
-        },
-      })
+      .get('/facture', { params: { search: debouncedSearch || undefined, payment_status: paymentStatusFilter || undefined, sort_by: 'reference', sort_dir: 'desc', page, per_page: perPage } })
       .then((res) => {
         const { items, meta } = unwrapPage(res);
         setFactures(items);
@@ -80,21 +72,11 @@ export default function FacturePage() {
   useEffect(() => {
     loadFactures();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, statusFilter, sortBy, sortDir, page, perPage]);
+  }, [debouncedSearch, paymentStatusFilter, page, perPage]);
 
   useEffect(() => {
     apiClient.get('/facture/next-reference').then((res) => setNextReference(res.data)).catch(() => {});
   }, []);
-
-  function handleSort(key) {
-    if (sortBy === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(key);
-      setSortDir('asc');
-    }
-    setPage(1);
-  }
 
   async function confirmDelete() {
     setDeleting(true);
@@ -103,35 +85,20 @@ export default function FacturePage() {
       showToast('Invoice deleted.');
       setDeletingFacture(null);
       loadFactures();
-    } catch {
-      showToast('Could not delete this invoice.', 'error');
+    } catch (err) {
+      showToast(err.response?.data?.message ?? 'Could not delete this invoice.', 'error');
     } finally {
       setDeleting(false);
-    }
-  }
-
-  async function handleDownload(item) {
-    try {
-      const res = await apiClient.get(`/facture/${item.id}/pdf`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${item.reference}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      showToast('Could not download the PDF.', 'error');
     }
   }
 
   async function handleCopy(item) {
     try {
       const res = await apiClient.get(`/facture/${item.id}`);
-      navigate('/factures/new', { state: { copyFrom: unwrap(res) } });
+      const full = unwrap(res);
+      navigate('/factures/new', { state: { copyFrom: full } });
     } catch {
-      showToast('Could not copy this invoice.', 'error');
+      showToast('Could not load this invoice to copy.', 'error');
     }
   }
 
@@ -153,9 +120,7 @@ export default function FacturePage() {
             <Pencil size={iconSize} /> {mobile && 'Edit'}
           </button>
         )}
-        <button onClick={() => handleDownload(item)} className={`${cls} text-slate-600`} title="Download PDF">
-          <Download size={iconSize} /> {mobile && 'PDF'}
-        </button>
+        <DownloadPdfButton documentType="facture" documentId={item.id} reference={item.reference} className={`${cls} text-slate-600`} mobile={mobile} />
         <button onClick={() => handleCopy(item)} className={`${cls} text-slate-600`} title="Copy">
           <Copy size={iconSize} /> {mobile && 'Copy'}
         </button>
@@ -182,7 +147,10 @@ export default function FacturePage() {
         </div>
         <div className="flex flex-col items-start gap-1 sm:items-end">
           <EditableNextReference documentType="facture" value={nextReference} onChange={setNextReference} />
-          <Link to="/factures/new" className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+          <Link
+            to="/factures/new"
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
             <Plus size={16} />
             New invoice
           </Link>
@@ -195,44 +163,50 @@ export default function FacturePage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by reference, client, sous-client, matricule..."
+            placeholder="Search by reference or client..."
             className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
         <select
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          value={paymentStatusFilter}
+          onChange={(e) => { setPaymentStatusFilter(e.target.value); setPage(1); }}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         >
           <option value="">All payment statuses</option>
           <option value="unpaid">Unpaid</option>
-          <option value="partial">Partially paid</option>
+          <option value="partial">Partial</option>
           <option value="paid">Paid</option>
         </select>
       </div>
+
+      <BulkDownloadBar documentType="facture" selectedIds={selectedIds} onClear={() => setSelectedIds([])} />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <SortableHeader label="Reference" sortKey="reference" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                <th className="w-8 px-4 py-3"></th>
+                <th className="px-4 py-3 font-medium">Reference</th>
                 <th className="px-4 py-3 font-medium">Client</th>
-                <SortableHeader label="Date" sortKey="date" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                <SortableHeader label="Total" sortKey="total" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} align="right" />
-                <SortableHeader label="Paid" sortKey="amount_paid" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} align="right" />
-                <SortableHeader label="Payment" sortKey="payment_status" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Due date</th>
+                <th className="px-4 py-3 text-right font-medium">Total</th>
+                <th className="px-4 py-3 font-medium">Payment</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">Loading...</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">Loading...</td></tr>
               ) : factures.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No invoices found.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No invoices found.</td></tr>
               ) : (
                 factures.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    </td>
                     <td className="px-4 py-3 font-medium text-slate-900">{item.reference}</td>
                     <td className="px-4 py-3 text-slate-600">
                       <div>{item.client?.name}</div>
@@ -243,17 +217,15 @@ export default function FacturePage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(item.date)}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {formatDate(item.due_date)}
+                      {item.is_overdue && <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">Overdue</span>}
+                    </td>
                     <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(item.total)} MAD</td>
-                    <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(item.amount_paid)} MAD</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusStyles[item.payment_status] ?? 'bg-slate-100 text-slate-600'}`}>
-                        {item.payment_status === 'partial' ? 'Partial' : item.payment_status}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${paymentStatusStyles[item.payment_status] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {item.payment_status}
                       </span>
-                      {item.is_overdue && (
-                        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
-                          <AlertCircle size={11} /> Overdue
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">{renderActions(item, false)}</div>
@@ -275,30 +247,30 @@ export default function FacturePage() {
               <ExpandableRow
                 key={item.id}
                 summary={
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-medium text-slate-900">{item.reference}</span>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusStyles[item.payment_status] ?? 'bg-slate-100 text-slate-600'}`}>
-                          {item.payment_status === 'partial' ? 'Partial' : item.payment_status}
+                  <div className="flex items-start gap-2">
+                    <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(item.id); }} onClick={(e) => e.stopPropagation()} className="mt-0.5 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-medium text-slate-900">{item.reference}</span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${paymentStatusStyles[item.payment_status] ?? 'bg-slate-100 text-slate-600'}`}>
+                          {item.payment_status}
                         </span>
-                        {item.is_overdue && <AlertCircle size={13} className="text-red-500" />}
                       </div>
-                    </div>
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
-                      <span className="truncate text-xs text-slate-500">{item.client?.name}</span>
-                      <span className="shrink-0 text-xs font-medium text-slate-700">{formatCurrency(item.total)} MAD</span>
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <span className="truncate text-xs text-slate-500">{item.client?.name}</span>
+                        <span className="shrink-0 text-xs font-medium text-slate-700">{formatCurrency(item.total)} MAD</span>
+                      </div>
                     </div>
                   </div>
                 }
                 details={
                   <>
                     <DetailRow label="Date" value={formatDate(item.date)} />
-                    <DetailRow label="Paid" value={`${formatCurrency(item.amount_paid)} MAD`} />
-                    <DetailRow label="Remaining" value={`${formatCurrency(item.remaining_balance)} MAD`} />
+                    <DetailRow label="Due date" value={formatDate(item.due_date)} />
                     {item.sous_client && (
                       <DetailRow label="Sous-client" value={`${item.sous_client.name}${item.sous_client.reference ? ' — ' + item.sous_client.reference : ''}`} />
                     )}
+                    {item.is_overdue && <DetailRow label="Status" value="Overdue" />}
                   </>
                 }
                 actions={renderActions(item, true)}
@@ -333,7 +305,16 @@ export default function FacturePage() {
         message={`Are you sure you want to delete "${deletingFacture?.reference}"? This can't be undone.`}
         loading={deleting}
       />
-      <RecordPaymentModal open={Boolean(payingFacture)} facture={payingFacture} onClose={() => setPayingFacture(null)} onSaved={loadFactures} />
+
+      <RecordPaymentModal
+        open={Boolean(payingFacture)}
+        facture={payingFacture}
+        onClose={() => setPayingFacture(null)}
+        onRecorded={() => {
+          setPayingFacture(null);
+          loadFactures();
+        }}
+      />
     </div>
   );
 }

@@ -11,6 +11,8 @@ import PerPageSelect from '../components/ui/PerPageSelect';
 import { useAuth } from '../contexts/AuthContext';
 import { canEditDocument, canDeleteDocuments } from '../utils/permissions';
 import { formatStockWarning } from '../utils/stockWarnings';
+import DownloadPdfButton from '../components/templates/DownloadPdfButton';
+import BulkDownloadBar from '../components/templates/BulkDownloadBar';
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0);
@@ -31,6 +33,11 @@ export default function DevisPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  function toggleSelect(id) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
 
   const [devis, setDevis] = useState([]);
   const [meta, setMeta] = useState(null);
@@ -101,22 +108,6 @@ export default function DevisPage() {
     }
   }
 
-  async function handleDownload(item) {
-    try {
-      const res = await apiClient.get(`/devis/${item.id}/pdf`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${item.reference}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      showToast('Could not download the PDF.', 'error');
-    }
-  }
-
   function renderActions(item, mobile) {
     const cls = mobile
       ? 'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium hover:bg-slate-100'
@@ -135,9 +126,7 @@ export default function DevisPage() {
             <Pencil size={iconSize} /> {mobile && 'Edit'}
           </button>
         )}
-        <button onClick={() => handleDownload(item)} className={`${cls} text-slate-600`} title="Download PDF">
-          <Download size={iconSize} /> {mobile && 'PDF'}
-        </button>
+        <DownloadPdfButton documentType="devis" documentId={item.id} reference={item.reference} className={`${cls} text-slate-600`} mobile={mobile} />
         <button onClick={() => handleDuplicate(item)} className={`${cls} text-slate-600`} title="Duplicate">
           <Copy size={iconSize} /> {mobile && 'Duplicate'}
         </button>
@@ -197,11 +186,14 @@ export default function DevisPage() {
         </select>
       </div>
 
+      <BulkDownloadBar documentType="devis" selectedIds={selectedIds} onClear={() => setSelectedIds([])} />
+
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
+                <th className="w-8 px-4 py-3"></th>
                 <th className="px-4 py-3 font-medium">Reference</th>
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Date</th>
@@ -218,6 +210,9 @@ export default function DevisPage() {
               ) : (
                 devis.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    </td>
                     <td className="px-4 py-3 font-medium text-slate-900">{item.reference}</td>
                     <td className="px-4 py-3 text-slate-600">
                       <div>{item.client?.name}</div>
@@ -257,7 +252,9 @@ export default function DevisPage() {
               <ExpandableRow
                 key={item.id}
                 summary={
-                  <div>
+                  <div className="flex items-start gap-2">
+                    <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(item.id); }} onClick={(e) => e.stopPropagation()} className="mt-0.5 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                  <div className="flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate font-medium text-slate-900">{item.reference}</span>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusStyles[item.status] ?? 'bg-slate-100 text-slate-600'}`}>
@@ -268,6 +265,7 @@ export default function DevisPage() {
                       <span className="truncate text-xs text-slate-500">{item.client?.name}</span>
                       <span className="shrink-0 text-xs font-medium text-slate-700">{formatCurrency(item.total)} MAD</span>
                     </div>
+                  </div>
                   </div>
                 }
                 details={

@@ -17,6 +17,8 @@ import FactureFormPage from './pages/FactureFormPage';
 import FactureDetailPage from './pages/FactureDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
+import TemplatesPage from './pages/TemplatesPage';
+import TemplateEditorPage from './pages/TemplateEditorPage';
 import OrganizationsPage from './pages/OrganizationsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
@@ -52,6 +54,9 @@ function AuthenticatedApp() {
         <Route path="/factures/:id/edit" element={<FactureFormPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         {user?.role === 'organization' && <Route path="/users" element={<UsersPage />} />}
+        {user?.role === 'organization' && <Route path="/templates" element={<TemplatesPage />} />}
+        {user?.role === 'organization' && <Route path="/templates/new" element={<TemplateEditorPage />} />}
+        {user?.role === 'organization' && <Route path="/templates/:id/edit" element={<TemplateEditorPage />} />}
         {user?.role === 'organization' && <Route path="/audit-logs" element={<AuditLogsPage />} />}
         <Route path="*" element={<PlaceholderPage />} />
       </Route>
