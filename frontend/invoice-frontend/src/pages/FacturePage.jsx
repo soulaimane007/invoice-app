@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, Pencil, Trash2, Copy, Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Eye, Pencil, Trash2, Copy, Wallet, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import apiClient, { unwrap, unwrapPage } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
@@ -27,6 +27,22 @@ const paymentStatusStyles = {
   paid: 'bg-emerald-100 text-emerald-700',
 };
 
+// Matches exactly what FactureController's $sortable array accepts —
+// clicking any other column simply isn't wired to a button at all.
+const SORTABLE_COLUMNS = {
+  reference: 'Reference',
+  date: 'Date',
+  due_date: 'Due date',
+  total: 'Total',
+  amount_paid: 'Paid',
+  payment_status: 'Payment',
+};
+
+function SortIcon({ active, dir }) {
+  if (!active) return <ChevronDown size={12} className="text-slate-300" />;
+  return dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />;
+}
+
 export default function FacturePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -39,6 +55,8 @@ export default function FacturePage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+  const [sortBy, setSortBy] = useState('reference');
+  const [sortDir, setSortDir] = useState('desc');
   const [loading, setLoading] = useState(true);
 
   const [deletingFacture, setDeletingFacture] = useState(null);
@@ -51,6 +69,16 @@ export default function FacturePage() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  function handleSort(column) {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(column);
+      setSortDir('asc');
+    }
+    setPage(1);
+  }
+
   useEffect(() => {
     const timeout = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
     return () => clearTimeout(timeout);
@@ -59,7 +87,7 @@ export default function FacturePage() {
   function loadFactures() {
     setLoading(true);
     apiClient
-      .get('/facture', { params: { search: debouncedSearch || undefined, payment_status: paymentStatusFilter || undefined, sort_by: 'reference', sort_dir: 'desc', page, per_page: perPage } })
+      .get('/facture', { params: { search: debouncedSearch || undefined, payment_status: paymentStatusFilter || undefined, sort_by: sortBy, sort_dir: sortDir, page, per_page: perPage } })
       .then((res) => {
         const { items, meta } = unwrapPage(res);
         setFactures(items);
@@ -72,7 +100,7 @@ export default function FacturePage() {
   useEffect(() => {
     loadFactures();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, paymentStatusFilter, page, perPage]);
+  }, [debouncedSearch, paymentStatusFilter, sortBy, sortDir, page, perPage]);
 
   useEffect(() => {
     apiClient.get('/facture/next-reference').then((res) => setNextReference(res.data)).catch(() => {});
@@ -187,20 +215,29 @@ export default function FacturePage() {
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
                 <th className="w-8 px-4 py-3"></th>
-                <th className="px-4 py-3 font-medium">Reference</th>
+                {Object.entries(SORTABLE_COLUMNS).map(([key, label]) => {
+                  const isRight = key === 'total' || key === 'amount_paid';
+                  return (
+                    <th key={key} className={`px-4 py-3 font-medium ${isRight ? 'text-right' : ''}`}>
+                      <button
+                        onClick={() => handleSort(key)}
+                        className={`flex items-center gap-1 hover:text-slate-900 ${isRight ? 'ml-auto flex-row-reverse' : ''} ${sortBy === key ? 'text-slate-900' : ''}`}
+                      >
+                        {label}
+                        <SortIcon active={sortBy === key} dir={sortDir} />
+                      </button>
+                    </th>
+                  );
+                })}
                 <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Due date</th>
-                <th className="px-4 py-3 text-right font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Payment</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">Loading...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">Loading...</td></tr>
               ) : factures.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No invoices found.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No invoices found.</td></tr>
               ) : (
                 factures.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50">
@@ -208,6 +245,18 @@ export default function FacturePage() {
                       <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-900">{item.reference}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatDate(item.date)}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {formatDate(item.due_date)}
+                      {item.is_overdue && <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">Overdue</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(item.total)} MAD</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(item.amount_paid)} MAD</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${paymentStatusStyles[item.payment_status] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {item.payment_status}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-slate-600">
                       <div>{item.client?.name}</div>
                       {item.sous_client && (
@@ -215,17 +264,6 @@ export default function FacturePage() {
                           {item.sous_client.name}{item.sous_client.reference ? ` — ${item.sous_client.reference}` : ''}
                         </div>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{formatDate(item.date)}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {formatDate(item.due_date)}
-                      {item.is_overdue && <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">Overdue</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(item.total)} MAD</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${paymentStatusStyles[item.payment_status] ?? 'bg-slate-100 text-slate-600'}`}>
-                        {item.payment_status}
-                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">{renderActions(item, false)}</div>
@@ -267,6 +305,7 @@ export default function FacturePage() {
                   <>
                     <DetailRow label="Date" value={formatDate(item.date)} />
                     <DetailRow label="Due date" value={formatDate(item.due_date)} />
+                    <DetailRow label="Paid" value={`${formatCurrency(item.amount_paid)} MAD`} />
                     {item.sous_client && (
                       <DetailRow label="Sous-client" value={`${item.sous_client.name}${item.sous_client.reference ? ' — ' + item.sous_client.reference : ''}`} />
                     )}

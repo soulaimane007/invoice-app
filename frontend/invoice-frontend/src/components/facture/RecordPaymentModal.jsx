@@ -7,7 +7,7 @@ function formatCurrency(value) {
   return new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0);
 }
 
-export default function RecordPaymentModal({ open, onClose, facture, onSaved }) {
+export default function RecordPaymentModal({ open, onClose, facture, onRecorded }) {
   const [paymentStatus, setPaymentStatus] = useState('unpaid');
   const [amountPaid, setAmountPaid] = useState('0');
   const [submitting, setSubmitting] = useState(false);
@@ -36,7 +36,7 @@ export default function RecordPaymentModal({ open, onClose, facture, onSaved }) 
         amount_paid: parseFloat(amountPaid) || 0,
       });
       showToast('Payment updated.');
-      onSaved();
+      onRecorded();
       onClose();
     } catch {
       showToast('Could not update payment.', 'error');

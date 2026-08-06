@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, Pencil, Trash2, Download, Copy, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Eye, Pencil, Trash2, Copy, ArrowRightLeft, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import apiClient, { unwrap, unwrapPage } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
@@ -29,6 +29,19 @@ const statusStyles = {
   rejected: 'bg-red-100 text-red-700',
 };
 
+// Matches exactly what DevisController's $sortable array accepts.
+const SORTABLE_COLUMNS = {
+  reference: 'Reference',
+  date: 'Date',
+  total: 'Total',
+  status: 'Status',
+};
+
+function SortIcon({ active, dir }) {
+  if (!active) return <ChevronDown size={12} className="text-slate-300" />;
+  return dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />;
+}
+
 export default function DevisPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -46,12 +59,24 @@ export default function DevisPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [sortBy, setSortBy] = useState('reference');
+  const [sortDir, setSortDir] = useState('desc');
   const [loading, setLoading] = useState(true);
 
   const [deletingDevis, setDeletingDevis] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [convertingDevis, setConvertingDevis] = useState(null);
   const [nextReference, setNextReference] = useState(null);
+
+  function handleSort(column) {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(column);
+      setSortDir('asc');
+    }
+    setPage(1);
+  }
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -64,7 +89,7 @@ export default function DevisPage() {
   function loadDevis() {
     setLoading(true);
     apiClient
-      .get('/devis', { params: { search: debouncedSearch || undefined, status: statusFilter || undefined, sort_by: 'reference', sort_dir: 'desc', page, per_page: perPage } })
+      .get('/devis', { params: { search: debouncedSearch || undefined, status: statusFilter || undefined, sort_by: sortBy, sort_dir: sortDir, page, per_page: perPage } })
       .then((res) => {
         const { items, meta } = unwrapPage(res);
         setDevis(items);
@@ -77,7 +102,7 @@ export default function DevisPage() {
   useEffect(() => {
     loadDevis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, statusFilter, page, perPage]);
+  }, [debouncedSearch, statusFilter, sortBy, sortDir, page, perPage]);
 
   useEffect(() => {
     apiClient.get('/devis/next-reference').then((res) => setNextReference(res.data)).catch(() => {});
@@ -194,19 +219,29 @@ export default function DevisPage() {
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
                 <th className="w-8 px-4 py-3"></th>
-                <th className="px-4 py-3 font-medium">Reference</th>
+                {Object.entries(SORTABLE_COLUMNS).map(([key, label]) => {
+                  const isRight = key === 'total';
+                  return (
+                    <th key={key} className={`px-4 py-3 font-medium ${isRight ? 'text-right' : ''}`}>
+                      <button
+                        onClick={() => handleSort(key)}
+                        className={`flex items-center gap-1 hover:text-slate-900 ${isRight ? 'ml-auto flex-row-reverse' : ''} ${sortBy === key ? 'text-slate-900' : ''}`}
+                      >
+                        {label}
+                        <SortIcon active={sortBy === key} dir={sortDir} />
+                      </button>
+                    </th>
+                  );
+                })}
                 <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 text-right font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Loading...</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">Loading...</td></tr>
               ) : devis.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No quotations found.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No quotations found.</td></tr>
               ) : (
                 devis.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50">
@@ -214,14 +249,6 @@ export default function DevisPage() {
                       <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-900">{item.reference}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      <div>{item.client?.name}</div>
-                      {item.sous_client && (
-                        <div className="text-xs italic text-indigo-600">
-                          {item.sous_client.name}{item.sous_client.reference ? ` — ${item.sous_client.reference}` : ''}
-                        </div>
-                      )}
-                    </td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(item.date)}</td>
                     <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(item.total)} MAD</td>
                     <td className="px-4 py-3">
@@ -230,6 +257,14 @@ export default function DevisPage() {
                       </span>
                       {item.is_converted && (
                         <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">Converted</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      <div>{item.client?.name}</div>
+                      {item.sous_client && (
+                        <div className="text-xs italic text-indigo-600">
+                          {item.sous_client.name}{item.sous_client.reference ? ` — ${item.sous_client.reference}` : ''}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3">

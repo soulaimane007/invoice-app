@@ -71,7 +71,6 @@
   padding: var(--tpl-cell-padding, 4px) 8px;
   text-align: left;
   vertical-align: top;
-  word-wrap: break-word;
 }
 .tpl-print-content table th {
   text-align: center;

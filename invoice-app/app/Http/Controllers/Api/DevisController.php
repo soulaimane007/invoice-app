@@ -224,7 +224,7 @@ class DevisController extends Controller
 
         $template = DocumentTemplate::where('document_type', 'devis')->findOrFail($validated['template_id']);
 
-        return $this->pdfService->bulkWithTemplate($devisList, $template, 'devis')->download('devis.pdf');
+        return $this->pdfService->bulkWithTemplate($devisList, $template, 'devis', 'devis.pdf');
     }
 
     public function downloadPdf(Request $request, Devis $devis)
@@ -234,7 +234,7 @@ class DevisController extends Controller
         if ($request->filled('template_id')) {
             $template = DocumentTemplate::where('document_type', 'devis')->findOrFail($request->query('template_id'));
 
-            return $this->pdfService->devisWithTemplate($devis, $template)->download("{$devis->reference}.pdf");
+            return $this->pdfService->devisWithTemplate($devis, $template);
         }
 
         return $this->pdfService->devis($devis)->download("{$devis->reference}.pdf");

@@ -44,7 +44,21 @@ body {
   outline: none;
   font-size: 13px;
   line-height: 1.5;
-  color: #1a1a1a;
+}
+
+/* A "blank line" in TipTap's live editing surface is never truly empty
+   — it actually renders as <p><br class="ProseMirror-trailingBreak"></p>,
+   with an invisible line-break element ProseMirror inserts so an empty
+   line still has somewhere for the cursor to sit. :empty alone can never
+   match that (it requires zero children), which is exactly why the
+   previous attempt at this rule had no effect. Both selectors are kept
+   here — the trailing-break case is the one that's actually confirmed
+   to occur, :empty is a harmless fallback in case a truly childless <p>
+   ever shows up some other way. */
+.tpl-page-content .ProseMirror p:empty,
+.tpl-page-content .ProseMirror p:has(> br.ProseMirror-trailingBreak) {
+  min-height: 1.2em !important;
+  margin: 0 0 6px 0 !important;
 }
 
 .tpl-page-content table {

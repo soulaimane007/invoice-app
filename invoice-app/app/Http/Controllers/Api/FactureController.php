@@ -177,7 +177,7 @@ class FactureController extends Controller
 
         $template = \App\Models\DocumentTemplate::where('document_type', 'facture')->findOrFail($validated['template_id']);
 
-        return $this->pdfService->bulkWithTemplate($factureList, $template, 'facture')->download('factures.pdf');
+        return $this->pdfService->bulkWithTemplate($factureList, $template, 'facture', 'factures.pdf');
     }
 
     public function downloadPdf(Request $request, Facture $facture)
@@ -187,7 +187,7 @@ class FactureController extends Controller
         if ($request->filled('template_id')) {
             $template = \App\Models\DocumentTemplate::where('document_type', 'facture')->findOrFail($request->query('template_id'));
 
-            return $this->pdfService->factureWithTemplate($facture, $template)->download("{$facture->reference}.pdf");
+            return $this->pdfService->factureWithTemplate($facture, $template);
         }
 
         return $this->pdfService->facture($facture)->download("{$facture->reference}.pdf");

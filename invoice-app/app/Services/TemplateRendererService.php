@@ -398,21 +398,29 @@ class TemplateRendererService
             $cols = iterator_to_array($xpath->query('./col', $colgroup));
             $widths = [];
             $total = 0;
+            $allHaveWidths = true;
             foreach ($cols as $col) {
-                if (preg_match('/width:\s*(\d+(?:\.\d+)?)px/', $col->getAttribute('style'), $m)) {
+                // Negative lookbehind: "min-width: 25px" (TipTap's
+                // default for a never-manually-resized column) contains
+                // the literal substring "width:" — without excluding
+                // "min-" here, that default minimum was being misread
+                // as a genuine, deliberately-set width.
+                if (preg_match('/(?<!min-)width:\s*(\d+(?:\.\d+)?)px/', $col->getAttribute('style'), $m)) {
                     $widths[] = (float) $m[1];
                     $total += (float) $m[1];
                 } else {
                     $widths[] = null;
+                    $allHaveWidths = false;
                 }
             }
-            if ($total <= 0) {
+            // Only safe to convert when EVERY column has a genuine width
+            // — a partial set means one real column would claim its
+            // share of an incomplete total, starving whichever column
+            // has none. Leave those tables exactly as they already were.
+            if (! $allHaveWidths || $total <= 0) {
                 continue;
             }
             foreach ($cols as $i => $col) {
-                if ($widths[$i] === null) {
-                    continue;
-                }
                 $percentage = round(($widths[$i] / $total) * 100, 2);
                 $col->setAttribute('style', "width: {$percentage}%");
             }
