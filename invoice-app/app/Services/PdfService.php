@@ -75,6 +75,7 @@ public function devisWithTemplate(\App\Models\Devis $devis, \App\Models\Document
         ])->render();
 
         $pdfContent = \Spatie\Browsershot\Browsershot::html($fullHtml)
+            ->setChromePath('/opt/browsershot-chrome-headless-shell/chrome-headless-shell-linux64/chrome-headless-shell')
             ->newHeadless()
             ->noSandbox()
             ->showBackground()

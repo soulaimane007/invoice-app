@@ -15,10 +15,12 @@ import UnitInput from '../components/ui/UnitInput';
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
-
+function generateTempId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 function emptyLine() {
   return {
-    tempId: crypto.randomUUID(),
+    tempId: generateTempId(),
     article_id: null,
     description: '',
     unit: 'Unité',
@@ -100,7 +102,7 @@ export default function DevisFormPage() {
           setComment(devis.comment ?? '');
           setLines(devis.lines.length > 0
             ? devis.lines.map((l) => ({
-                tempId: crypto.randomUUID(),
+                tempId: generateTempId(),
                 article_id: l.article_id,
                 description: l.description,
                 unit: l.unit ?? 'Unité',
@@ -159,7 +161,7 @@ export default function DevisFormPage() {
     setLines((prev) => [
       ...prev,
       {
-        tempId: crypto.randomUUID(),
+        tempId: generateTempId(),
         article_id: article.id,
         description: article.description || article.name,
         unit: article.unit || 'Unité',

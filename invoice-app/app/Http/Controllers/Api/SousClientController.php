@@ -18,7 +18,12 @@ class SousClientController extends Controller
 
         return SousClientResource::collection($sousClients);
     }
+public function checkMatch(Request $request, Client $client, SousClientService $sousClientService): JsonResponse
+    {
+        $data = $request->validate(['matricule' => 'nullable|string']);
 
+        return response()->json($sousClientService->checkManualEntryMatch($client->id, $data['matricule'] ?? null));
+    }
     public function store(SousClientRequest $request, Client $client)
     {
         $this->authorize('update', $client);

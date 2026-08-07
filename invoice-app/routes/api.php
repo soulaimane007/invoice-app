@@ -54,8 +54,10 @@ Route::post('/document-templates', [\App\Http\Controllers\Api\DocumentTemplateCo
         Route::get('/company-settings', [CompanySettingController::class, 'show']);
         Route::post('/company-settings', [CompanySettingController::class, 'update']);
 
+        Route::post('/clients/check-match', [ClientController::class, 'checkMatch']);
         Route::get('/clients/autocomplete', [ClientController::class, 'autocomplete']);
         Route::apiResource('clients', ClientController::class);
+        Route::post('/clients/{client}/sous-clients/check-match', [SousClientController::class, 'checkMatch']);
         Route::get('/clients/{client}/sous-clients', [SousClientController::class, 'index']);
         Route::post('/clients/{client}/sous-clients', [SousClientController::class, 'store']);
         Route::put('/sous-clients/{sousClient}', [SousClientController::class, 'update']);

@@ -7,13 +7,6 @@ use RuntimeException;
 
 class SousClientService
 {
-    /**
-     * Mirrors ClientService::findOrCreate. If `id` is present, reuse
-     * that sous-client (confirming it actually belongs to $clientId)
-     * and let an edited matricule patch its stored reference. If only
-     * a name is given, create a new sous-client under that client.
-     * Returns null when no sous-client info was submitted at all.
-     */
     public function findOrCreate(int $clientId, ?array $details): ?SousClient
     {
         if (empty($details) || (empty($details['id']) && empty($details['name']))) {
@@ -41,5 +34,24 @@ class SousClientService
             'name' => $details['name'],
             'reference' => $details['reference'] ?? null,
         ]);
+    }
+
+    // ASSUMPTION: matricule uniqueness is scoped per-client, matching how
+    // findOrCreate above already scopes its lookups — flag if that's wrong.
+    public function checkManualEntryMatch(int $clientId, ?string $matricule): array
+    {
+        $matricule = ($matricule !== null && trim($matricule) !== '') ? trim($matricule) : null;
+
+        if ($matricule !== null) {
+            $match = SousClient::where('client_id', $clientId)
+                ->whereRaw('LOWER(reference) = ?', [mb_strtolower($matricule)])
+                ->first();
+
+            if ($match) {
+                return ['type' => 'matricule_match', 'sous_client_id' => $match->id];
+            }
+        }
+
+        return ['type' => 'create'];
     }
 }
