@@ -13,7 +13,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: 169.58.137.92
-          username: deploy
+          username: root
           key: b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZWQyNTUxOQAAACBQxlbCQoVNsPBuzN1vnzJMVPWVj75/kqe1mFpLH8RlrwAAAJi8BHgIvAR4CAAAAAtzc2gtZWQyNTUxOQAAACBQxlbCQoVNsPBuzN1vnzJMVPWVj75/kqe1mFpLH8RlrwAAAEDOsW3P32/X7kH6xKAGscxrUcyfMIbAj5RH7AEulnSHO1DGVsJChU2w8G7M3W+fMkxU9ZWPvn+Sp7WYWksfxGWvAAAAFWdpdGh1Yi1hY3Rpb25zLWRlcGxveQ==
           port: 22
           script: |
