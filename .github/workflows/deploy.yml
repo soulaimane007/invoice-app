@@ -1,0 +1,32 @@
+name: Deploy to Contabo
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 169.58.137.92
+          username: ${{ secrets.SERVER_USER }}
+          key: b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZWQyNTUxOQAAACBQxlbCQoVNsPBuzN1vnzJMVPWVj75/kqe1mFpLH8RlrwAAAJi8BHgIvAR4CAAAAAtzc2gtZWQyNTUxOQAAACBQxlbCQoVNsPBuzN1vnzJMVPWVj75/kqe1mFpLH8RlrwAAAEDOsW3P32/X7kH6xKAGscxrUcyfMIbAj5RH7AEulnSHO1DGVsJChU2w8G7M3W+fMkxU9ZWPvn+Sp7WYWksfxGWvAAAAFWdpdGh1Yi1hY3Rpb25zLWRlcGxveQ==
+          port: 22
+          script: |
+            set -e
+            cd /var/www/invoice-app
+            git pull
+
+            cd /var/www/invoice-app/invoice-app
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+
+            cd /var/www/invoice-app/frontend/invoice-frontend
+            npm install
+            npm run build
