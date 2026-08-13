@@ -159,6 +159,12 @@ class DevisService
             $articleId = $isService ? null : ($line['article_id'] ?? null);
             if (! $isService && ! $articleId && trim($description) !== '') {
                 $articleId = $this->articleService->findOrCreate($description, $unitPrice, $tvaRate, $unit)->id;
+            } elseif (! $isService && $articleId && ! empty($line['rename_article']) && trim($description) !== '') {
+                // Explicit opt-in only — set when the user picked "Modifier
+                // l'article existant" in the confirmation modal. Renames the
+                // shared catalogue record itself, mirroring FactureService's
+                // identical fix.
+                Article::where('id', $articleId)->update(['name' => trim($description)]);
             }
             if (! $unit && $articleId) {
                 $unit = Article::find($articleId)?->unit;
