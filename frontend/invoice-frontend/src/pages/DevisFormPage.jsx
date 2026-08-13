@@ -667,7 +667,17 @@ export default function DevisFormPage() {
         keepLabel="Créer un nouveau client"
         changeLabel="Modifier le client existant"
         onKeep={() => { setClient((prev) => ({ ...prev, id: null })); setWorkflowAModal(null); runChecksAndSubmit({ clientId: null }); }}
-        onChange={() => { setWorkflowAModal(null); actualSubmit(); }}
+        onChange={async () => {
+          setWorkflowAModal(null);
+          try {
+            const res = await apiClient.post(`/clients/${client.id}/check-ice-conflict`, { ice: client.ice });
+            if (res.data.conflict) {
+              showToast(`Cette ICE appartient déjà à "${res.data.conflicting_client_name}" — impossible de l'attribuer à ce client aussi.`, 'error');
+              return;
+            }
+          } catch { /* fail open — don't block a legitimate save over a network hiccup */ }
+          actualSubmit();
+        }}
       />
       <EntityMatchModal
         open={workflowAModal === 'sousClient'}

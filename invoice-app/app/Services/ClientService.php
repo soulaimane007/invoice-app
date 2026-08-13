@@ -72,6 +72,26 @@ class ClientService
         return ['type' => 'no_match'];
     }
 
+    /**
+     * Used specifically when "Modifier le client existant" is chosen
+     * after editing a picked client's ICE — unlike checkManualEntryMatch,
+     * there's no ambiguous middle case here to ask the user about: if a
+     * DIFFERENT client record already owns this exact ICE, saving it
+     * onto this one would silently give two separate clients the same
+     * real-world identifier, which is never a valid state.
+     */
+    public function iceBelongsToAnotherClient(string $ice, int $excludeClientId): ?Client
+    {
+        $ice = trim($ice);
+        if ($ice === '') {
+            return null;
+        }
+
+        return Client::whereRaw('LOWER(ice) = ?', [mb_strtolower($ice)])
+            ->where('id', '!=', $excludeClientId)
+            ->first();
+    }
+
     public function update(Client $client, array $data): Client
     {
         $client->update($data);

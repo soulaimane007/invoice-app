@@ -55,6 +55,7 @@ Route::post('/document-templates', [\App\Http\Controllers\Api\DocumentTemplateCo
         Route::post('/company-settings', [CompanySettingController::class, 'update']);
 
         Route::post('/clients/check-match', [ClientController::class, 'checkMatch']);
+        Route::post('/clients/{client}/check-ice-conflict', [ClientController::class, 'checkIceConflict']);
         Route::get('/clients/autocomplete', [ClientController::class, 'autocomplete']);
         Route::apiResource('clients', ClientController::class);
         Route::post('/clients/{client}/sous-clients/check-match', [SousClientController::class, 'checkMatch']);

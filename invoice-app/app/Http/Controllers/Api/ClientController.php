@@ -81,6 +81,16 @@ class ClientController extends Controller
 
         return new ClientResource($client);
     }
+    public function checkIceConflict(Request $request, Client $client, ClientService $clientService): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate(['ice' => 'nullable|string']);
+        $conflict = $clientService->iceBelongsToAnotherClient($data['ice'] ?? '', $client->id);
+
+        return response()->json([
+            'conflict' => $conflict !== null,
+            'conflicting_client_name' => $conflict?->name,
+        ]);
+    }
 public function checkMatch(Request $request, ClientService $clientService): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate(['name' => 'required|string', 'ice' => 'nullable|string']);
