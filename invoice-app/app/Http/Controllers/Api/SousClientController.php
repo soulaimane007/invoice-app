@@ -18,7 +18,7 @@ class SousClientController extends Controller
 
         return SousClientResource::collection($sousClients);
     }
-public function checkMatch(Request $request, Client $client, SousClientService $sousClientService): JsonResponse
+public function checkMatch(Request $request, Client $client, SousClientService $sousClientService): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate(['matricule' => 'nullable|string']);
 

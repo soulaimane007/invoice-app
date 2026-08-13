@@ -81,7 +81,7 @@ class ClientController extends Controller
 
         return new ClientResource($client);
     }
-public function checkMatch(Request $request, ClientService $clientService): JsonResponse
+public function checkMatch(Request $request, ClientService $clientService): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate(['name' => 'required|string', 'ice' => 'nullable|string']);
 
