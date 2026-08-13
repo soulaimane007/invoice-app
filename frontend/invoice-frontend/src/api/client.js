@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: "http://169.58.137.92:8000/api",
+  baseURL: "https://api.nordelo.app/api",
 });
 
 apiClient.interceptors.request.use((config) => {

@@ -11,6 +11,7 @@ import ArticleSearchInput from '../components/devis/ArticleSearchInput';
 import SousClientAutocomplete from '../components/devis/SousClientAutocomplete';
 import ReferenceNumberField from '../components/devis/ReferenceNumberField';
 import UnitInput from '../components/ui/UnitInput';
+import EntityMatchModal from '../components/shared/EntityMatchModal';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -71,7 +72,14 @@ export default function DevisFormPage() {
   const [errors, setErrors] = useState({});
 
   const [client, setClient] = useState({ id: null, name: '', address: '', phone: '', email: '', ice: '' });
+  const [clientSnapshot, setClientSnapshot] = useState(null);
+  const [workflowAModal, setWorkflowAModal] = useState(null);
+  const [pendingClientMatch, setPendingClientMatch] = useState(null);
   const [sousClientId, setSousClientId] = useState(null);
+  const [sousClientSnapshot, setSousClientSnapshot] = useState(null);
+  const [pendingSousClientMatch, setPendingSousClientMatch] = useState(null);
+  const [articleLineSnapshots, setArticleLineSnapshots] = useState({});
+  const [pendingArticleRename, setPendingArticleRename] = useState(null);
   const [sousClientName, setSousClientName] = useState('');
   const [sousClientReference, setSousClientReference] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -93,14 +101,16 @@ export default function DevisFormPage() {
             email: devis.client.email ?? '',
             ice: devis.client.ice ?? '',
           });
+          setClientSnapshot({ name: devis.client.name ?? '', ice: devis.client.ice ?? '' });
           setSousClientId(devis.sous_client?.id ?? null);
           setSousClientName(devis.sous_client?.name ?? '');
           setSousClientReference(devis.sous_client?.reference ?? '');
+          setSousClientSnapshot(devis.sous_client ? { name: devis.sous_client.name ?? '', reference: devis.sous_client.reference ?? '' } : null);
           setReferenceNumber(devis.reference_number ? String(devis.reference_number) : '');
           setDate(devis.date ?? todayISO());
           setStatus(devis.status ?? 'draft');
           setComment(devis.comment ?? '');
-          setLines(devis.lines.length > 0
+          const loadedLines = devis.lines.length > 0
             ? devis.lines.map((l) => ({
                 tempId: generateTempId(),
                 article_id: l.article_id,
@@ -111,7 +121,11 @@ export default function DevisFormPage() {
                 unit_price: String(l.unit_price),
                 tva_rate: String(l.tva_rate),
               }))
-            : [emptyLine()]);
+            : [emptyLine()];
+          setLines(loadedLines);
+          const snapshots = {};
+          loadedLines.forEach((l) => { if (l.article_id) snapshots[l.tempId] = { description: l.description }; });
+          setArticleLineSnapshots(snapshots);
         })
         .catch(() => showToast(t('form.couldNotLoadQuotation'), 'error'))
         .finally(() => setLoading(false));
@@ -143,7 +157,12 @@ export default function DevisFormPage() {
       email: picked.email ?? '',
       ice: picked.ice ?? '',
     });
+    setClientSnapshot({ name: picked.name, ice: picked.ice ?? '' });
     resetSousClient();
+  }
+
+  function clientWasEditedAfterSelection() {
+    return Boolean(client.id) && clientSnapshot && (client.name !== clientSnapshot.name || client.ice !== clientSnapshot.ice);
   }
 
   function handleSousClientNameChange(name) {
@@ -155,13 +174,19 @@ export default function DevisFormPage() {
     setSousClientId(item.id);
     setSousClientName(item.name);
     setSousClientReference(item.reference ?? '');
+    setSousClientSnapshot({ name: item.name, reference: item.reference ?? '' });
+  }
+
+  function sousClientWasEditedAfterSelection() {
+    return Boolean(sousClientId) && sousClientSnapshot && (sousClientName !== sousClientSnapshot.name || sousClientReference !== sousClientSnapshot.reference);
   }
 
   function addArticleLine(article) {
+    const tempId = generateTempId();
     setLines((prev) => [
       ...prev,
       {
-        tempId: generateTempId(),
+        tempId,
         article_id: article.id,
         description: article.description || article.name,
         unit: article.unit || 'Unité',
@@ -171,6 +196,9 @@ export default function DevisFormPage() {
         tva_rate: String(article.tva_rate ?? 20),
       },
     ]);
+    if (isEdit) {
+      setArticleLineSnapshots((prev) => ({ ...prev, [tempId]: { description: article.description || article.name } }));
+    }
   }
 
   function addBlankLine() {
@@ -195,12 +223,64 @@ export default function DevisFormPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    await runChecksAndSubmit();
+  }
+
+  async function runChecksAndSubmit() {
+    if (clientWasEditedAfterSelection()) {
+      setWorkflowAModal('client');
+      return;
+    }
+    if (sousClientWasEditedAfterSelection()) {
+      setWorkflowAModal('sousClient');
+      return;
+    }
+
+    if (!client.id && client.name.trim()) {
+      try {
+        const res = await apiClient.post('/clients/check-match', { name: client.name, ice: client.ice });
+        if (res.data.type === 'ice_match_name_differs' || res.data.type === 'name_match_ice_differs') {
+          setPendingClientMatch(res.data);
+          return;
+        }
+        if (res.data.type === 'exact') {
+          setClient((prev) => ({ ...prev, id: res.data.client_id }));
+        }
+      } catch (err) {
+        console.error('[check-match] Client duplicate check failed:', err.response?.status, err.response?.data);
+        showToast('Could not verify this client against existing records — please try again.', 'error');
+        return;
+      }
+    }
+
+    if (client.id && !sousClientId && sousClientName.trim()) {
+      try {
+        const res = await apiClient.post(`/clients/${client.id}/sous-clients/check-match`, { matricule: sousClientReference });
+        if (res.data.type === 'matricule_match') {
+          setPendingSousClientMatch(res.data);
+          return;
+        }
+      } catch { /* fail open */ }
+    }
+
+    if (isEdit) {
+      const flagged = lines.find((l) => l.article_id && articleLineSnapshots[l.tempId] && l.description !== articleLineSnapshots[l.tempId].description);
+      if (flagged) {
+        setPendingArticleRename({ tempId: flagged.tempId, oldDescription: articleLineSnapshots[flagged.tempId].description, newDescription: flagged.description });
+        return;
+      }
+    }
+
+    await actualSubmit();
+  }
+
+  async function actualSubmit() {
     setSubmitting(true);
     setErrors({});
 
     const payload = {
       client: client.id
-        ? { id: client.id, address: client.address, phone: client.phone, email: client.email, ice: client.ice }
+        ? { id: client.id, name: client.name, address: client.address, phone: client.phone, email: client.email, ice: client.ice }
         : { name: client.name, address: client.address, phone: client.phone, email: client.email, ice: client.ice },
       sous_client: sousClientName.trim()
         ? { id: sousClientId, name: sousClientName.trim(), reference: sousClientReference || null }
@@ -216,6 +296,7 @@ export default function DevisFormPage() {
           description: l.description,
           unit: l.unit || 'Unité',
           is_service: l.is_service,
+          rename_article: Boolean(l.rename_article),
           quantity: l.is_service ? null : (parseFloat(l.quantity) || 0),
           unit_price: parseFloat(l.unit_price) || 0,
           tva_rate: parseFloat(l.tva_rate) || 0,
@@ -568,6 +649,73 @@ export default function DevisFormPage() {
           </button>
         </div>
       </form>
+
+      <EntityMatchModal
+        open={workflowAModal === 'client'}
+        onClose={() => setWorkflowAModal(null)}
+        title="Le client existant a été modifié"
+        message={`Vous avez modifié les informations de "${clientSnapshot?.name}".`}
+        keepLabel="Créer un nouveau client"
+        changeLabel="Modifier le client existant"
+        onKeep={() => { setClient((prev) => ({ ...prev, id: null })); setWorkflowAModal(null); actualSubmit(); }}
+        onChange={() => { setWorkflowAModal(null); actualSubmit(); }}
+      />
+      <EntityMatchModal
+        open={workflowAModal === 'sousClient'}
+        onClose={() => setWorkflowAModal(null)}
+        title="Le sous-client existant a été modifié"
+        message={`Vous avez modifié les informations de "${sousClientSnapshot?.name}".`}
+        keepLabel="Créer un nouveau sous-client"
+        changeLabel="Modifier le sous-client existant"
+        onKeep={() => { setSousClientId(null); setWorkflowAModal(null); actualSubmit(); }}
+        onChange={() => { setWorkflowAModal(null); actualSubmit(); }}
+      />
+      <EntityMatchModal
+        open={Boolean(pendingClientMatch)}
+        onClose={() => setPendingClientMatch(null)}
+        title={pendingClientMatch?.type === 'ice_match_name_differs' ? "L'ICE existe déjà" : `Le client "${client.name}" existe déjà`}
+        message={
+          pendingClientMatch?.type === 'ice_match_name_differs'
+            ? `Nom enregistré :\n${pendingClientMatch?.existing_name}\n\nNom saisi :\n${pendingClientMatch?.submitted_name}`
+            : `ICE enregistré :\n${pendingClientMatch?.existing_ice || '—'}\n\nICE saisi :\n${pendingClientMatch?.submitted_ice}`
+        }
+        keepLabel={pendingClientMatch?.type === 'ice_match_name_differs' ? 'Conserver le nom enregistré' : "Conserver l'ICE enregistré"}
+        changeLabel={pendingClientMatch?.type === 'ice_match_name_differs' ? 'Modifier le nom' : "Modifier l'ICE"}
+        onKeep={() => { setClient((prev) => ({ ...prev, id: pendingClientMatch.client_id })); setPendingClientMatch(null); actualSubmit(); }}
+        onChange={() => { setClient((prev) => ({ ...prev, id: pendingClientMatch.client_id })); setPendingClientMatch(null); actualSubmit(); }}
+      />
+      <EntityMatchModal
+        open={Boolean(pendingArticleRename)}
+        onClose={() => setPendingArticleRename(null)}
+        title="Le nom de l'article a été modifié"
+        message={`Ancien nom :\n${pendingArticleRename?.oldDescription}\n\nNouveau nom :\n${pendingArticleRename?.newDescription}`}
+        keepLabel="Créer un nouvel article"
+        changeLabel="Modifier l'article existant"
+        onKeep={() => {
+          const { tempId } = pendingArticleRename;
+          setLines((prev) => prev.map((l) => (l.tempId === tempId ? { ...l, article_id: null, rename_article: false } : l)));
+          setArticleLineSnapshots((prev) => { const next = { ...prev }; delete next[tempId]; return next; });
+          setPendingArticleRename(null);
+          runChecksAndSubmit();
+        }}
+        onChange={() => {
+          const { tempId, newDescription } = pendingArticleRename;
+          setLines((prev) => prev.map((l) => (l.tempId === tempId ? { ...l, rename_article: true } : l)));
+          setArticleLineSnapshots((prev) => ({ ...prev, [tempId]: { description: newDescription } }));
+          setPendingArticleRename(null);
+          runChecksAndSubmit();
+        }}
+      />
+      <EntityMatchModal
+        open={Boolean(pendingSousClientMatch)}
+        onClose={() => setPendingSousClientMatch(null)}
+        title="Ce matricule existe déjà"
+        message="Un sous-client avec ce matricule existe déjà pour ce client. Utiliser le sous-client existant ?"
+        keepLabel="Utiliser l'existant"
+        changeLabel="Utiliser l'existant"
+        onKeep={() => { setSousClientId(pendingSousClientMatch.sous_client_id); setPendingSousClientMatch(null); actualSubmit(); }}
+        onChange={() => { setSousClientId(pendingSousClientMatch.sous_client_id); setPendingSousClientMatch(null); actualSubmit(); }}
+      />
     </div>
   );
 }
