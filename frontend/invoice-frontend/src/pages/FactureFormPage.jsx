@@ -193,10 +193,6 @@ export default function FactureFormPage() {
     resetSousClient();
   }
 
-  function clientWasEditedAfterSelection() {
-    return Boolean(client.id) && clientSnapshot && (client.name !== clientSnapshot.name || client.ice !== clientSnapshot.ice);
-  }
-
   function handleSousClientNameChange(name) {
     setSousClientName(name);
     setSousClientId(name.trim() === '' ? null : sousClientId);
@@ -207,10 +203,6 @@ export default function FactureFormPage() {
     setSousClientName(item.name);
     setSousClientReference(item.reference ?? '');
     setSousClientSnapshot({ name: item.name, reference: item.reference ?? '' });
-  }
-
-  function sousClientWasEditedAfterSelection() {
-    return Boolean(sousClientId) && sousClientSnapshot && (sousClientName !== sousClientSnapshot.name || sousClientReference !== sousClientSnapshot.reference);
   }
 
   function addArticleLine(article) {
@@ -274,19 +266,30 @@ export default function FactureFormPage() {
     await runChecksAndSubmit();
   }
 
-  async function runChecksAndSubmit(linesOverride) {
-    const effectiveLines = linesOverride ?? lines;
+  // Single entry point for every path that can lead to a save — a fresh
+  // manual entry, "create new" out of either confirmation modal, or a
+  // resubmit after resolving an article rename. Always takes the CURRENT
+  // client/sous-client id as an explicit argument rather than trusting
+  // component state, since React state updates aren't visible until the
+  // next render — reading `client.id` here right after a setClient() call
+  // would still see the OLD value. Because "create new" now routes back
+  // through this same function, the duplicate check always runs no matter
+  // which door the user came in through.
+  async function runChecksAndSubmit(overrides = {}) {
+    let resolvedClientId = 'clientId' in overrides ? overrides.clientId : client.id;
+    let resolvedSousClientId = 'sousClientId' in overrides ? overrides.sousClientId : sousClientId;
+    const effectiveLines = overrides.lines ?? lines;
 
-    if (clientWasEditedAfterSelection()) {
+    if (resolvedClientId && clientSnapshot && (client.name !== clientSnapshot.name || client.ice !== clientSnapshot.ice)) {
       setWorkflowAModal('client');
       return;
     }
-    if (sousClientWasEditedAfterSelection()) {
+    if (resolvedSousClientId && sousClientSnapshot && (sousClientName !== sousClientSnapshot.name || sousClientReference !== sousClientSnapshot.reference)) {
       setWorkflowAModal('sousClient');
       return;
     }
 
-    if (!client.id && client.name.trim()) {
+    if (!resolvedClientId && client.name.trim()) {
       try {
         const res = await apiClient.post('/clients/check-match', { name: client.name, ice: client.ice });
         if (res.data.type === 'ice_match_name_differs' || res.data.type === 'name_match_ice_differs') {
@@ -294,18 +297,19 @@ export default function FactureFormPage() {
           return;
         }
         if (res.data.type === 'exact') {
-          setClient((prev) => ({ ...prev, id: res.data.client_id }));
+          resolvedClientId = res.data.client_id;
+          setClient((prev) => ({ ...prev, id: resolvedClientId }));
         }
       } catch (err) {
         console.error('[check-match] Client duplicate check failed:', err.response?.status, err.response?.data);
         showToast('Could not verify this client against existing records — please try again.', 'error');
-        return; // stop here instead of silently proceeding to creation
+        return;
       }
     }
 
-    if (client.id && !sousClientId && sousClientName.trim()) {
+    if (resolvedClientId && !resolvedSousClientId && sousClientName.trim()) {
       try {
-        const res = await apiClient.post(`/clients/${client.id}/sous-clients/check-match`, { matricule: sousClientReference });
+        const res = await apiClient.post(`/clients/${resolvedClientId}/sous-clients/check-match`, { matricule: sousClientReference });
         if (res.data.type === 'matricule_match') {
           setPendingSousClientMatch(res.data);
           return;
@@ -321,7 +325,7 @@ export default function FactureFormPage() {
       }
     }
 
-    await actualSubmit({ lines: effectiveLines });
+    await actualSubmit({ clientId: resolvedClientId, sousClientId: resolvedSousClientId, lines: effectiveLines });
   }
 
   async function actualSubmit(overrides = {}) {
@@ -758,7 +762,7 @@ export default function FactureFormPage() {
         message={`Vous avez modifié les informations de "${clientSnapshot?.name}".`}
         keepLabel="Créer un nouveau client"
         changeLabel="Modifier le client existant"
-        onKeep={() => { setClient((prev) => ({ ...prev, id: null })); setWorkflowAModal(null); actualSubmit({ clientId: null }); }}
+        onKeep={() => { setClient((prev) => ({ ...prev, id: null })); setWorkflowAModal(null); runChecksAndSubmit({ clientId: null }); }}
         onChange={() => { setWorkflowAModal(null); actualSubmit(); }}
       />
       <EntityMatchModal
@@ -768,7 +772,7 @@ export default function FactureFormPage() {
         message={`Vous avez modifié les informations de "${sousClientSnapshot?.name}".`}
         keepLabel="Créer un nouveau sous-client"
         changeLabel="Modifier le sous-client existant"
-        onKeep={() => { setSousClientId(null); setWorkflowAModal(null); actualSubmit({ sousClientId: null }); }}
+        onKeep={() => { setSousClientId(null); setWorkflowAModal(null); runChecksAndSubmit({ sousClientId: null }); }}
         onChange={() => { setWorkflowAModal(null); actualSubmit(); }}
       />
       <EntityMatchModal
@@ -798,7 +802,7 @@ export default function FactureFormPage() {
           setLines(newLines);
           setArticleLineSnapshots((prev) => { const next = { ...prev }; delete next[tempId]; return next; });
           setPendingArticleRename(null);
-          runChecksAndSubmit(newLines);
+          runChecksAndSubmit({ lines: newLines });
         }}
         onChange={() => {
           const { tempId, newDescription } = pendingArticleRename;
@@ -806,7 +810,7 @@ export default function FactureFormPage() {
           setLines(newLines);
           setArticleLineSnapshots((prev) => ({ ...prev, [tempId]: { description: newDescription } }));
           setPendingArticleRename(null);
-          runChecksAndSubmit(newLines);
+          runChecksAndSubmit({ lines: newLines });
         }}
       />
       <EntityMatchModal

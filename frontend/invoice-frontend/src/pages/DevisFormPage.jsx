@@ -161,10 +161,6 @@ export default function DevisFormPage() {
     resetSousClient();
   }
 
-  function clientWasEditedAfterSelection() {
-    return Boolean(client.id) && clientSnapshot && (client.name !== clientSnapshot.name || client.ice !== clientSnapshot.ice);
-  }
-
   function handleSousClientNameChange(name) {
     setSousClientName(name);
     setSousClientId(name.trim() === '' ? null : sousClientId);
@@ -175,10 +171,6 @@ export default function DevisFormPage() {
     setSousClientName(item.name);
     setSousClientReference(item.reference ?? '');
     setSousClientSnapshot({ name: item.name, reference: item.reference ?? '' });
-  }
-
-  function sousClientWasEditedAfterSelection() {
-    return Boolean(sousClientId) && sousClientSnapshot && (sousClientName !== sousClientSnapshot.name || sousClientReference !== sousClientSnapshot.reference);
   }
 
   function addArticleLine(article) {
@@ -226,17 +218,29 @@ export default function DevisFormPage() {
     await runChecksAndSubmit();
   }
 
-  async function runChecksAndSubmit() {
-    if (clientWasEditedAfterSelection()) {
+  // Single entry point for every path that can lead to a save — a fresh
+  // manual entry, "create new" out of either confirmation modal, or a
+  // resubmit after resolving an article rename. Always takes the CURRENT
+  // client/sous-client id as an explicit argument rather than trusting
+  // component state, since React state updates aren't visible until the
+  // next render. Because "create new" now routes back through this same
+  // function, the duplicate check always runs no matter which door the
+  // user came in through.
+  async function runChecksAndSubmit(overrides = {}) {
+    let resolvedClientId = 'clientId' in overrides ? overrides.clientId : client.id;
+    let resolvedSousClientId = 'sousClientId' in overrides ? overrides.sousClientId : sousClientId;
+    const effectiveLines = overrides.lines ?? lines;
+
+    if (resolvedClientId && clientSnapshot && (client.name !== clientSnapshot.name || client.ice !== clientSnapshot.ice)) {
       setWorkflowAModal('client');
       return;
     }
-    if (sousClientWasEditedAfterSelection()) {
+    if (resolvedSousClientId && sousClientSnapshot && (sousClientName !== sousClientSnapshot.name || sousClientReference !== sousClientSnapshot.reference)) {
       setWorkflowAModal('sousClient');
       return;
     }
 
-    if (!client.id && client.name.trim()) {
+    if (!resolvedClientId && client.name.trim()) {
       try {
         const res = await apiClient.post('/clients/check-match', { name: client.name, ice: client.ice });
         if (res.data.type === 'ice_match_name_differs' || res.data.type === 'name_match_ice_differs') {
@@ -244,7 +248,8 @@ export default function DevisFormPage() {
           return;
         }
         if (res.data.type === 'exact') {
-          setClient((prev) => ({ ...prev, id: res.data.client_id }));
+          resolvedClientId = res.data.client_id;
+          setClient((prev) => ({ ...prev, id: resolvedClientId }));
         }
       } catch (err) {
         console.error('[check-match] Client duplicate check failed:', err.response?.status, err.response?.data);
@@ -253,9 +258,9 @@ export default function DevisFormPage() {
       }
     }
 
-    if (client.id && !sousClientId && sousClientName.trim()) {
+    if (resolvedClientId && !resolvedSousClientId && sousClientName.trim()) {
       try {
-        const res = await apiClient.post(`/clients/${client.id}/sous-clients/check-match`, { matricule: sousClientReference });
+        const res = await apiClient.post(`/clients/${resolvedClientId}/sous-clients/check-match`, { matricule: sousClientReference });
         if (res.data.type === 'matricule_match') {
           setPendingSousClientMatch(res.data);
           return;
@@ -264,32 +269,36 @@ export default function DevisFormPage() {
     }
 
     if (isEdit) {
-      const flagged = lines.find((l) => l.article_id && articleLineSnapshots[l.tempId] && l.description !== articleLineSnapshots[l.tempId].description);
+      const flagged = effectiveLines.find((l) => l.article_id && articleLineSnapshots[l.tempId] && l.description !== articleLineSnapshots[l.tempId].description);
       if (flagged) {
         setPendingArticleRename({ tempId: flagged.tempId, oldDescription: articleLineSnapshots[flagged.tempId].description, newDescription: flagged.description });
         return;
       }
     }
 
-    await actualSubmit();
+    await actualSubmit({ clientId: resolvedClientId, sousClientId: resolvedSousClientId, lines: effectiveLines });
   }
 
-  async function actualSubmit() {
+  async function actualSubmit(overrides = {}) {
     setSubmitting(true);
     setErrors({});
 
+    const effectiveClientId = 'clientId' in overrides ? overrides.clientId : client.id;
+    const effectiveSousClientId = 'sousClientId' in overrides ? overrides.sousClientId : sousClientId;
+    const effectiveLines = overrides.lines ?? lines;
+
     const payload = {
-      client: client.id
-        ? { id: client.id, name: client.name, address: client.address, phone: client.phone, email: client.email, ice: client.ice }
+      client: effectiveClientId
+        ? { id: effectiveClientId, name: client.name, address: client.address, phone: client.phone, email: client.email, ice: client.ice }
         : { name: client.name, address: client.address, phone: client.phone, email: client.email, ice: client.ice },
       sous_client: sousClientName.trim()
-        ? { id: sousClientId, name: sousClientName.trim(), reference: sousClientReference || null }
+        ? { id: effectiveSousClientId, name: sousClientName.trim(), reference: sousClientReference || null }
         : null,
       reference_number: referenceNumber ? parseInt(referenceNumber, 10) : null,
       date,
       status,
       comment,
-      lines: lines
+      lines: effectiveLines
         .filter((l) => l.description.trim() !== '')
         .map((l) => ({
           article_id: l.article_id,
@@ -657,7 +666,7 @@ export default function DevisFormPage() {
         message={`Vous avez modifié les informations de "${clientSnapshot?.name}".`}
         keepLabel="Créer un nouveau client"
         changeLabel="Modifier le client existant"
-        onKeep={() => { setClient((prev) => ({ ...prev, id: null })); setWorkflowAModal(null); actualSubmit(); }}
+        onKeep={() => { setClient((prev) => ({ ...prev, id: null })); setWorkflowAModal(null); runChecksAndSubmit({ clientId: null }); }}
         onChange={() => { setWorkflowAModal(null); actualSubmit(); }}
       />
       <EntityMatchModal
@@ -667,7 +676,7 @@ export default function DevisFormPage() {
         message={`Vous avez modifié les informations de "${sousClientSnapshot?.name}".`}
         keepLabel="Créer un nouveau sous-client"
         changeLabel="Modifier le sous-client existant"
-        onKeep={() => { setSousClientId(null); setWorkflowAModal(null); actualSubmit(); }}
+        onKeep={() => { setSousClientId(null); setWorkflowAModal(null); runChecksAndSubmit({ sousClientId: null }); }}
         onChange={() => { setWorkflowAModal(null); actualSubmit(); }}
       />
       <EntityMatchModal
@@ -681,8 +690,8 @@ export default function DevisFormPage() {
         }
         keepLabel={pendingClientMatch?.type === 'ice_match_name_differs' ? 'Conserver le nom enregistré' : "Conserver l'ICE enregistré"}
         changeLabel={pendingClientMatch?.type === 'ice_match_name_differs' ? 'Modifier le nom' : "Modifier l'ICE"}
-        onKeep={() => { setClient((prev) => ({ ...prev, id: pendingClientMatch.client_id })); setPendingClientMatch(null); actualSubmit(); }}
-        onChange={() => { setClient((prev) => ({ ...prev, id: pendingClientMatch.client_id })); setPendingClientMatch(null); actualSubmit(); }}
+        onKeep={() => { const cid = pendingClientMatch.client_id; setClient((prev) => ({ ...prev, id: cid })); setPendingClientMatch(null); actualSubmit({ clientId: cid }); }}
+        onChange={() => { const cid = pendingClientMatch.client_id; setClient((prev) => ({ ...prev, id: cid })); setPendingClientMatch(null); actualSubmit({ clientId: cid }); }}
       />
       <EntityMatchModal
         open={Boolean(pendingArticleRename)}
@@ -693,17 +702,19 @@ export default function DevisFormPage() {
         changeLabel="Modifier l'article existant"
         onKeep={() => {
           const { tempId } = pendingArticleRename;
-          setLines((prev) => prev.map((l) => (l.tempId === tempId ? { ...l, article_id: null, rename_article: false } : l)));
+          const newLines = lines.map((l) => (l.tempId === tempId ? { ...l, article_id: null, rename_article: false } : l));
+          setLines(newLines);
           setArticleLineSnapshots((prev) => { const next = { ...prev }; delete next[tempId]; return next; });
           setPendingArticleRename(null);
-          runChecksAndSubmit();
+          runChecksAndSubmit({ lines: newLines });
         }}
         onChange={() => {
           const { tempId, newDescription } = pendingArticleRename;
-          setLines((prev) => prev.map((l) => (l.tempId === tempId ? { ...l, rename_article: true } : l)));
+          const newLines = lines.map((l) => (l.tempId === tempId ? { ...l, rename_article: true } : l));
+          setLines(newLines);
           setArticleLineSnapshots((prev) => ({ ...prev, [tempId]: { description: newDescription } }));
           setPendingArticleRename(null);
-          runChecksAndSubmit();
+          runChecksAndSubmit({ lines: newLines });
         }}
       />
       <EntityMatchModal
@@ -713,8 +724,8 @@ export default function DevisFormPage() {
         message="Un sous-client avec ce matricule existe déjà pour ce client. Utiliser le sous-client existant ?"
         keepLabel="Utiliser l'existant"
         changeLabel="Utiliser l'existant"
-        onKeep={() => { setSousClientId(pendingSousClientMatch.sous_client_id); setPendingSousClientMatch(null); actualSubmit(); }}
-        onChange={() => { setSousClientId(pendingSousClientMatch.sous_client_id); setPendingSousClientMatch(null); actualSubmit(); }}
+        onKeep={() => { const scid = pendingSousClientMatch.sous_client_id; setSousClientId(scid); setPendingSousClientMatch(null); actualSubmit({ sousClientId: scid }); }}
+        onChange={() => { const scid = pendingSousClientMatch.sous_client_id; setSousClientId(scid); setPendingSousClientMatch(null); actualSubmit({ sousClientId: scid }); }}
       />
     </div>
   );
